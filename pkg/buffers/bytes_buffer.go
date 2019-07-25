@@ -13,6 +13,7 @@ const (
 
 type BytesBuffer interface {
 	Append(bytes ...byte)
+	AppendString(str string)
 	AppendUint16(item uint16)
 	AppendUint32(item uint32)
 	AppendUint64(item uint64)
@@ -36,6 +37,10 @@ type bytesBuffer struct {
 
 func (b *bytesBuffer) Append(bytes ...byte) {
 	b.buf = append(b.buf, bytes...)
+}
+
+func (b *bytesBuffer) AppendString(str string) {
+	b.Append([]byte(str)...)
 }
 
 func (b *bytesBuffer) AppendUint16(item uint16) {
@@ -103,10 +108,8 @@ func (b *allocatedBuffer) Append(bytes ...byte) {
 	b.offset += l
 }
 
-func (b *allocatedBuffer) set(s, v []byte, l int) {
-	for i := 0; i < l; i++ {
-		s[i] = v[i]
-	}
+func (b *allocatedBuffer) AppendString(str string) {
+	b.Append([]byte(str)...)
 }
 
 func (b *allocatedBuffer) AppendUint16(item uint16) {
