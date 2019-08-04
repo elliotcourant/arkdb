@@ -7,4 +7,5 @@ const (
 	MetaPrefix_Schema              = 's'
 	MetaPrefix_Table               = 't'
 	MetaPrefix_Column              = 'c'
+	MetaPrefix_MyId                = '@'
 )
