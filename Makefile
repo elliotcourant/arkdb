@@ -1,6 +1,4 @@
-.PHONY: generated parser
+.PHONY: generated
 
-generated: parser
-
-parser:
-	goyacc -o pkg/ast/ast.go pkg/ast/ast.y
+generated:
+	@echo nothing to generate
