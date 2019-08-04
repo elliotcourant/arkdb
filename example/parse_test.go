@@ -1,4 +1,4 @@
-package example__test
+package example_test
 
 import (
 	"github.com/pingcap/parser"
