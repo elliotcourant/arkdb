@@ -1,0 +1,19 @@
+language: go
+
+os:
+  - linux
+
+go:
+  - go1.12
+  - tip
+
+go_import_path: github.com/elliotcourant/arkdb
+
+install: true
+
+env:
+  - GO111MODULE=on
+
+script:
+  - ./coverage.sh
+  - bash <(curl -s https://codecov.io/bash)
