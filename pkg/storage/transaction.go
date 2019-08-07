@@ -37,8 +37,8 @@ type ActionType uint8
 
 const (
 	ActionTypeNone   ActionType = 0
-	ActionTypeSet               = 1
-	ActionTypeDelete            = 2
+	ActionTypeSet    ActionType = 1
+	ActionTypeDelete ActionType = 2
 )
 
 type Action struct {

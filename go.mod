@@ -8,7 +8,9 @@ require (
 	github.com/dgraph-io/badger v1.6.0
 	github.com/elliotcourant/buffers v0.0.0-20190807195733-d42afc579b7e
 	github.com/elliotcourant/timber v0.0.0-20190722215549-948c7b1e3876
+	github.com/hashicorp/go-hclog v0.9.1
 	github.com/hashicorp/raft v1.1.1
+	github.com/jackc/pgx v3.5.1-0.20190806214632-ca9de5125695+incompatible
 	github.com/pingcap/parser v0.0.0-20190803082711-3db5c165d5d9
 	github.com/pingcap/tidb v0.0.0-20190804061401-3bd64ba92f14
 	github.com/pingcap/tipb v0.0.0-20190801052434-b2d318af5e8a // indirect
