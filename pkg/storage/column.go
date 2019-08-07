@@ -1,11 +1,11 @@
 package storage
 
 import (
-	"github.com/elliotcourant/arkdb/pkg/buffers"
+	"github.com/elliotcourant/buffers"
 )
 
 var (
-	columnMinimumSize = 8
+	columnMinimumSize = 10
 )
 
 type Column struct {
@@ -22,11 +22,12 @@ func (i Column) Size() int {
 }
 
 func (i Column) Path() []byte {
-	l := len(i.ColumnName)
-	buf := buffers.NewAllocatedBytesBuffer(columnMinimumSize + l)
-	buf.Append(MetaPrefix_Column, i.DatabaseID, i.SchemaID, i.TableID, uint8(l))
+	buf := buffers.NewBytesBuffer()
+	buf.AppendByte(MetaPrefix_Column)
+	buf.AppendUint8(i.DatabaseID)
+	buf.AppendUint8(i.SchemaID)
+	buf.AppendUint8(i.TableID)
 	buf.AppendString(i.ColumnName)
-	buf.Append(i.ColumnID)
 	buf.AppendUint16(i.ColumnType)
 	return buf.Bytes()
 }

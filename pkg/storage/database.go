@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/elliotcourant/arkdb/pkg/buffers"
+	"github.com/elliotcourant/buffers"
 )
 
 type Database struct {
@@ -10,10 +10,9 @@ type Database struct {
 }
 
 func (d Database) Path() []byte {
-	l := len(d.DatabaseName)
-	buf := buffers.NewAllocatedBytesBuffer(3 + l)
-	buf.Append(MetaPrefix_Database, uint8(l))
+	buf := buffers.NewBytesBuffer()
+	buf.AppendUint8(MetaPrefix_Database)
 	buf.AppendString(d.DatabaseName)
-	buf.Append(d.DatabaseID)
+	buf.AppendUint8(d.DatabaseID)
 	return buf.Bytes()
 }

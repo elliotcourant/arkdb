@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/elliotcourant/arkdb/pkg/buffers"
+	"github.com/elliotcourant/buffers"
 )
 
 type Table struct {
@@ -12,18 +12,20 @@ type Table struct {
 }
 
 func (i Table) Path() []byte {
-	l := len(i.TableName)
-	buf := buffers.NewAllocatedBytesBuffer(5 + l)
-	buf.Append(MetaPrefix_Table, i.DatabaseID, i.SchemaID, uint8(l))
+	buf := buffers.NewBytesBuffer()
+	buf.AppendByte(MetaPrefix_Table)
+	buf.AppendUint8(i.DatabaseID)
+	buf.AppendUint8(i.SchemaID)
 	buf.AppendString(i.TableName)
-	buf.Append(i.TableID)
+	buf.AppendUint8(i.TableID)
 	return buf.Bytes()
 }
 
 func TablesByNamePrefix(databaseId, schemaId uint8, tableName string) []byte {
-	l := len(tableName)
-	buf := buffers.NewAllocatedBytesBuffer(4 + l)
-	buf.Append(MetaPrefix_Table, databaseId, schemaId, uint8(l))
+	buf := buffers.NewBytesBuffer()
+	buf.AppendByte(MetaPrefix_Table)
+	buf.AppendUint8(databaseId)
+	buf.AppendUint8(schemaId)
 	buf.AppendString(tableName)
 	return buf.Bytes()
 }

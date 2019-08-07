@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/elliotcourant/arkdb/pkg/buffers"
+	"github.com/elliotcourant/buffers"
 )
 
 type Schema struct {
@@ -11,10 +11,10 @@ type Schema struct {
 }
 
 func (s Schema) Path() []byte {
-	l := len(s.SchemaName)
-	buf := buffers.NewAllocatedBytesBuffer(4 + l)
-	buf.Append(MetaPrefix_Schema, s.DatabaseID, uint8(l))
+	buf := buffers.NewBytesBuffer()
+	buf.AppendByte(MetaPrefix_Schema)
+	buf.AppendUint8(s.DatabaseID)
 	buf.AppendString(s.SchemaName)
-	buf.Append(s.SchemaID)
+	buf.AppendUint8(s.SchemaID)
 	return buf.Bytes()
 }

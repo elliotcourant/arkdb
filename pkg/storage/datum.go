@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"github.com/elliotcourant/arkdb/pkg/buffers"
+	"github.com/elliotcourant/buffers"
 )
 
 type Datum struct {
@@ -13,10 +13,11 @@ type Datum struct {
 }
 
 func (i Datum) Path() []byte {
-	buf := buffers.NewAllocatedBytesBuffer(19)
-	buf.Append(i.SchemaID, i.TableID)
+	buf := buffers.NewBytesBuffer()
+	buf.AppendUint8(i.SchemaID)
+	buf.AppendUint8(i.TableID)
 	buf.AppendUint64(i.ShardPrimaryKeyID)
-	buf.Append(i.ColumnID)
+	buf.AppendUint8(i.ColumnID)
 	buf.AppendUint64(i.PrimaryKeyID)
 	return buf.Bytes()
 }
