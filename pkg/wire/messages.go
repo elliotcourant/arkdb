@@ -12,11 +12,16 @@ type (
 
 // Client Message Types
 const (
-	appendEntriesRequest clientMessageType = 'a'
+	appendEntriesRequest   clientMessageType = 'a'
+	requestVoteRequest     clientMessageType = 'v'
+	installSnapshotRequest clientMessageType = 'i'
 )
 
 const (
-	appendEntriesResponse serverMessageType = 'A'
+	appendEntriesResponse   serverMessageType = 'A'
+	requestVoteResponse     serverMessageType = 'V'
+	installSnapshotResponse serverMessageType = 'I'
+	errorResponse           serverMessageType = 'E'
 )
 
 type Message interface {
@@ -49,6 +54,17 @@ func writeWireMessage(msg Message) []byte {
 	switch msg.(type) {
 	case *AppendEntriesRequest:
 		buf.AppendByte(appendEntriesRequest)
+	case *RequestVoteRequest:
+		buf.AppendByte(requestVoteRequest)
+	case *InstallSnapshotRequest:
+		buf.AppendByte(installSnapshotRequest)
+
+	case *AppendEntriesResponse:
+		buf.AppendByte(appendEntriesResponse)
+	case *RequestVoteResponse:
+		buf.AppendByte(requestVoteResponse)
+	case *InstallSnapshotResponse:
+		buf.AppendByte(installSnapshotResponse)
 	default:
 		panic(fmt.Sprintf("unrecognized message type for wire [%T]", msg))
 	}

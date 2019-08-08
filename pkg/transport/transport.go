@@ -172,7 +172,7 @@ type pgPipeline struct {
 
 	logger hclog.Logger
 
-	wire wire.ServerWire
+	wire wire.ClientWire
 }
 
 func NewPgTransportWithConfig(
@@ -434,7 +434,7 @@ func (p *PgTransport) receiveResponse(conn *pgConn, response interface{}) error 
 			}
 			response = msg.InstallSnapshotResponse
 		case *wire.ErrorResponse:
-			err = errors.New(msg.Message)
+			err = msg.Error
 			response = nil
 		default:
 			err = fmt.Errorf("could handle response message type [%v]", msg)
@@ -636,7 +636,7 @@ func (p *PgTransport) handleConnection(connectionContext context.Context, conn n
 				}
 			case nil:
 				msg = &wire.ErrorResponse{
-					Message: response.Error.Error(),
+					Error: response.Error,
 				}
 			}
 
@@ -652,10 +652,7 @@ func (p *PgTransport) handleConnection(connectionContext context.Context, conn n
 }
 
 func newPgPipeline(trans *PgTransport, conn *pgConn) (*pgPipeline, error) {
-	wire, err := pgproto.NewRaftWire(conn.conn, conn.conn)
-	if err != nil {
-		return nil, err
-	}
+	wr := wire.NewClientWire(conn.conn, conn.conn)
 
 	p := &pgPipeline{
 		conn:              conn,
@@ -664,7 +661,7 @@ func newPgPipeline(trans *PgTransport, conn *pgConn) (*pgPipeline, error) {
 		inProgressChannel: make(chan *appendFuture, rpcMaxPipeline),
 		shutdownChannel:   make(chan struct{}),
 		logger:            logger.NewLogger(),
-		wire:              wire,
+		wire:              wr,
 	}
 
 	go p.processResponses()
@@ -690,7 +687,7 @@ func (p *pgPipeline) AppendEntries(
 		p.conn.conn.SetWriteDeadline(time.Now().Add(timeout))
 	}
 
-	if err := p.wire.Send(&pgproto.AppendEntriesRequest{
+	if err := p.wire.Send(&wire.AppendEntriesRequest{
 		AppendEntriesRequest: *args,
 	}); err != nil {
 		return nil, err
@@ -752,7 +749,7 @@ func (p *pgPipeline) processResponses() {
 					future.respond(msg.Error)
 				case *wire.ErrorResponse:
 					future.resp = nil
-					future.respond(errors.New(msg.Message))
+					future.respond(msg.Error)
 				default:
 					err = fmt.Errorf("received an invalid response from [%v]: %v", p.conn.conn.RemoteAddr(), msg)
 					p.logger.Error(err.Error())
