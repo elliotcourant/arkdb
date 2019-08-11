@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"sort"
+	"sync"
 	"time"
 )
 
@@ -43,14 +44,15 @@ type Options struct {
 }
 
 type boat struct {
-	id      raft.ServerID
-	nodeId  nodeId
-	newNode bool
-	db      *badger.DB
-	options *Options
-	logger  timber.Logger
-	raft    *raft.Raft
-	ln      transportwrapper.TransportWrapper
+	id       raft.ServerID
+	nodeId   nodeId
+	newNode  bool
+	db       *badger.DB
+	options  *Options
+	logger   timber.Logger
+	raftSync sync.RWMutex
+	raft     *raft.Raft
+	ln       transportwrapper.TransportWrapper
 }
 
 func NewDistributor(listener net.Listener, options *Options, l timber.Logger) (Barge, error) {
@@ -132,7 +134,9 @@ func (r *boat) Start() error {
 	if err != nil {
 		return err
 	}
-
+	r.raftSync.Lock()
+	r.raft = rft
+	r.raftSync.Unlock()
 	if len(r.options.Peers) == 1 && newNode && !r.options.Join {
 		r.logger.Infof("bootstrapping")
 		configuration := raft.Configuration{
@@ -143,7 +147,7 @@ func (r *boat) Start() error {
 				},
 			},
 		}
-		rft.BootstrapCluster(configuration)
+		r.raft.BootstrapCluster(configuration)
 	} else if len(r.options.Peers) > 1 && newNode && !r.options.Join {
 		r.logger.Infof("bootstrapping")
 		servers := make([]raft.Server, len(r.options.Peers))
@@ -160,7 +164,7 @@ func (r *boat) Start() error {
 		configuration := raft.Configuration{
 			Servers: servers,
 		}
-		bootstrapResult := rft.BootstrapCluster(configuration)
+		bootstrapResult := r.raft.BootstrapCluster(configuration)
 		if err := bootstrapResult.Error(); err != nil {
 			r.logger.Errorf("failed to bootstrap: %v", err)
 		} else {
@@ -168,15 +172,21 @@ func (r *boat) Start() error {
 		}
 	}
 	r.logger.Info("raft started")
-	r.raft = rft
 	r.newNode = false
 	r.id = config.LocalID
 	return nil
 }
 
+func (r *boat) Leader() raft.ServerAddress {
+	r.raftSync.RLock()
+	defer r.raftSync.RUnlock()
+	return r.raft.Leader()
+}
+
 func (r *boat) WaitForLeader(timeout time.Duration) (string, bool, error) {
 	address, err := func(timeout time.Duration) (string, error) {
-		l := string(r.raft.Leader())
+		ld := r.Leader()
+		l := string(ld)
 		if len(l) > 0 {
 			return l, nil
 		}
@@ -188,7 +198,7 @@ func (r *boat) WaitForLeader(timeout time.Duration) (string, bool, error) {
 		for {
 			select {
 			case <-ticker.C:
-				l := string(r.raft.Leader())
+				l := string(r.Leader())
 				if len(l) > 0 {
 					return l, nil
 				}
