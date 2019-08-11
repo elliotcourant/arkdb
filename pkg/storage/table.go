@@ -40,6 +40,15 @@ func (i Table) Path() []byte {
 	return buf.Bytes()
 }
 
+func (i Table) Prefix() []byte {
+	buf := buffers.NewBytesBuffer()
+	buf.AppendByte(MetaPrefix_Table)
+	buf.AppendUint8(i.DatabaseID)
+	buf.AppendUint8(i.SchemaID)
+	buf.AppendString(i.TableName)
+	return buf.Bytes()
+}
+
 func TablesByNamePrefix(databaseId, schemaId uint8, tableName string) []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Table)

@@ -104,16 +104,7 @@ func TestNewDistributor(t *testing.T) {
 		}
 
 		// Make sure all of the nodes have the same leader
-		leaderAddr := ""
-		for _, node := range nodes {
-			addr, _, err := node.WaitForLeader(time.Second * 5)
-			assert.NoError(t, err)
-			if leaderAddr == "" {
-				leaderAddr = addr
-			}
-
-			assert.Equal(t, leaderAddr, addr)
-		}
+		VerifyLeader(t, nodes)
 	})
 
 	t.Run("non-leader write", func(t *testing.T) {

@@ -42,9 +42,58 @@ func (r *boat) Begin() (Transaction, error) {
 	}, nil
 }
 
+type Iterator interface {
+	Close()
+	Item() *badger.Item
+	Next()
+	Valid() bool
+	Seek(key []byte)
+	ValidForPrefix(prefix []byte) bool
+	Rewind()
+}
+
+type iteratorBase struct {
+	closed     bool
+	closedSync sync.RWMutex
+	itr        *badger.Iterator
+}
+
+func (i *iteratorBase) Close() {
+	i.closedSync.Lock()
+	defer i.closedSync.Unlock()
+	i.closed = true
+	i.itr.Close()
+}
+
+func (i *iteratorBase) Item() *badger.Item {
+	return i.itr.Item()
+}
+
+func (i *iteratorBase) Next() {
+	i.itr.Next()
+}
+
+func (i *iteratorBase) Valid() bool {
+	return i.itr.Valid()
+}
+
+func (i *iteratorBase) Seek(key []byte) {
+	i.itr.Seek(key)
+}
+
+func (i *iteratorBase) ValidForPrefix(prefix []byte) bool {
+	return i.itr.ValidForPrefix(prefix)
+}
+
+func (i *iteratorBase) Rewind() {
+	i.itr.Rewind()
+}
+
 type Transaction interface {
 	Get(key []byte, value Decoder) error
 	Set(key []byte, value Encoder) error
+
+	GetKeyIterator(prefix []byte, reverse bool) Iterator
 
 	Rollback() error
 	Commit() error
@@ -57,6 +106,18 @@ type transaction struct {
 	txn               *badger.Txn
 	pendingWrites     map[string][]byte
 	pendingWritesSync sync.RWMutex
+}
+
+func (t *transaction) GetKeyIterator(prefix []byte, reverse bool) Iterator {
+	itr := t.txn.NewIterator(badger.IteratorOptions{
+		PrefetchValues: false,
+		Reverse:        reverse,
+		Prefix:         prefix,
+	})
+
+	return &iteratorBase{
+		itr: itr,
+	}
 }
 
 func (t *transaction) Get(key []byte, value Decoder) error {
