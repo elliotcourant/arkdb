@@ -134,23 +134,9 @@ func (r *boat) Start() error {
 			},
 		}
 		rft.BootstrapCluster(configuration)
-
 	} else if len(r.options.Peers) > 1 && newNode && !r.options.Join {
-		// r.logger.Infof("bootstrapping")
-		// configuration := raft.Configuration{
-		// 	Servers: []raft.Server{
-		// 		{
-		// 			ID:      raft.ServerID(addr),
-		// 			Address: raft.ServerAddress(addr),
-		// 		},
-		// 	},
-		// }
-		// rft.BootstrapCluster(configuration)
-
 		r.logger.Infof("bootstrapping")
-
 		servers := make([]raft.Server, len(r.options.Peers))
-
 		for i, peer := range r.options.Peers {
 			peerAddr, err := network.ResolveAddress(peer)
 			if err != nil {
@@ -161,7 +147,6 @@ func (r *boat) Start() error {
 				Address: raft.ServerAddress(peerAddr),
 			}
 		}
-
 		configuration := raft.Configuration{
 			Servers: servers,
 		}
@@ -171,29 +156,9 @@ func (r *boat) Start() error {
 		} else {
 			r.logger.Infof("successfully bootstrapped node")
 		}
-
 	}
 	r.logger.Info("raft started")
 	r.raft = rft
-
-	// r.WaitForLeader(time.Second * 5)
-	//
-	// if r.IsLeader() {
-	// 	for _, peer := range r.options.Peers {
-	// 		peerAddr, _ := network.ResolveAddress(peer)
-	// 		if peerAddr == addr {
-	// 			continue
-	// 		}
-	// 		r.logger.Infof("trying to add [%s] to the cluster", peer)
-	// 		ftr := r.raft.AddVoter(raft.ServerID(peer), raft.ServerAddress(peer), 0, 0)
-	// 		if err := ftr.Error(); err != nil {
-	// 			r.logger.Errorf("failed to add voter: %v", err)
-	// 			continue
-	// 		}
-	// 		i := ftr.Index()
-	// 		r.logger.Infof("successfully added voter [%s] index: %d", peer, i)
-	// 	}
-	// }
 
 	return nil
 }
