@@ -3,7 +3,6 @@ package planner
 import (
 	"fmt"
 	"github.com/elliotcourant/arkdb/pkg/distribution"
-	"github.com/elliotcourant/timber"
 )
 
 func Execute(tx distribution.Transaction, plan Plan) (interface{}, error) {
@@ -17,37 +16,41 @@ func Execute(tx distribution.Transaction, plan Plan) (interface{}, error) {
 	return nil, nil
 }
 
+func doesExist(tx distribution.Transaction, prefix []byte) (exists bool, err error) {
+	err = func(tx distribution.Transaction, prefix []byte) error {
+		itr := tx.GetKeyIterator(prefix, false)
+		defer itr.Close()
+		for itr.Seek(prefix); itr.ValidForPrefix(prefix); {
+			exists = true
+			return nil
+		}
+		return nil
+	}(tx, prefix)
+	return exists, err
+}
+
 func executeItem(tx distribution.Transaction, step PlanStep) (interface{}, error) {
 	switch item := step.(type) {
 	case AddColumnPlanner:
 		if item.CheckExisting() {
-			err := func(tx distribution.Transaction, item AddColumnPlanner) error {
-				itr := tx.GetKeyIterator(item.NamePrefix(), false)
-				defer itr.Close()
-				for itr.Seek(item.NamePrefix()); itr.ValidForPrefix(item.NamePrefix()); {
-					return fmt.Errorf("a column with the same name already exists")
-				}
-				return nil
-			}(tx, item)
+			exists, err := doesExist(tx, item.NamePrefix())
 			if err != nil {
 				return nil, err
+			}
+			if exists {
+				return nil, fmt.Errorf("a column with matching name already exists")
 			}
 		}
 		if err := tx.Set(item.Path(), item); err != nil {
 			return nil, err
 		}
 	case CreateTablePlanner:
-		err := func(tx distribution.Transaction, item CreateTablePlanner) error {
-			itr := tx.GetKeyIterator(item.NamePrefix(), false)
-			defer itr.Close()
-			for itr.Seek(item.NamePrefix()); itr.ValidForPrefix(item.NamePrefix()); {
-				timber.Debugf("found table with matching name")
-				return fmt.Errorf("a table with the same name already exists")
-			}
-			return nil
-		}(tx, item)
+		exists, err := doesExist(tx, item.NamePrefix())
 		if err != nil {
 			return nil, err
+		}
+		if exists {
+			return nil, fmt.Errorf("a table with the same name already exists")
 		}
 
 		tableId := uint8(3)
