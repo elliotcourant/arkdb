@@ -18,6 +18,8 @@ func (i *InstallSnapshotRequest) Reader() io.Reader {
 
 func (InstallSnapshotRequest) Client() {}
 
+func (InstallSnapshotRequest) Raft() {}
+
 func (i *InstallSnapshotRequest) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendInt32(int32(i.ProtocolVersion))

@@ -11,6 +11,10 @@ type Table struct {
 	TableName  string
 }
 
+func (i Table) Encode() []byte {
+	return make([]byte, 0)
+}
+
 func (i Table) Path() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Table)

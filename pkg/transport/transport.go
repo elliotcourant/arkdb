@@ -20,7 +20,11 @@ func NewTransport(address string) (Transport, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &transport{l}, nil
+	return NewTransportFromListener(l), nil
+}
+
+func NewTransportFromListener(listener net.Listener) Transport {
+	return &transport{listener}
 }
 
 type transport struct {
@@ -173,7 +177,7 @@ func (a *appendFuture) Response() *raft.AppendEntriesResponse {
 type pgConn struct {
 	target raft.ServerAddress
 	conn   net.Conn
-	wire   wire.ClientWire
+	wire   wire.RaftClientWire
 }
 
 func (p *pgConn) Release() error {
@@ -193,7 +197,7 @@ type pgPipeline struct {
 
 	logger timber.Logger
 
-	wire wire.ClientWire
+	wire wire.RaftClientWire
 }
 
 func NewPgTransportWithConfig(
@@ -403,7 +407,7 @@ func (p *PgTransport) DecodePeer(buf []byte) raft.ServerAddress {
 	return raft.ServerAddress(buf)
 }
 
-func (p *PgTransport) genericRPC(id raft.ServerID, target raft.ServerAddress, args wire.ClientMessage, response interface{}) error {
+func (p *PgTransport) genericRPC(id raft.ServerID, target raft.ServerAddress, args wire.RaftClientMessage, response interface{}) error {
 	conn, err := p.getConnFromAddressProvider(id, target)
 	if err != nil {
 		return err
@@ -521,12 +525,15 @@ func (p *PgTransport) getConn(target raft.ServerAddress) (*pgConn, error) {
 		return nil, err
 	}
 
-	wire := wire.NewClientWire(conn, conn)
+	w, err := wire.NewRaftClientWire(conn, conn)
+	if err != nil {
+		return nil, err
+	}
 
 	pgConn := &pgConn{
 		target: target,
 		conn:   conn,
-		wire:   wire,
+		wire:   w,
 	}
 
 	return pgConn, nil
@@ -575,7 +582,7 @@ func (p *PgTransport) listen() {
 
 func (p *PgTransport) handleConnection(connectionContext context.Context, conn net.Conn) {
 	defer conn.Close()
-	wr := wire.NewServerWire(conn, conn)
+	wr := wire.NewRaftServerWire(conn, conn)
 
 	for {
 		select {
@@ -642,7 +649,7 @@ func (p *PgTransport) handleConnection(connectionContext context.Context, conn n
 	RESPONSE:
 		select {
 		case response := <-responseChannel:
-			var msg wire.ServerMessage
+			var msg wire.RaftServerMessage
 			switch rsp := response.Response.(type) {
 			case *raft.AppendEntriesResponse:
 				msg = &wire.AppendEntriesResponse{
@@ -677,7 +684,7 @@ func (p *PgTransport) handleConnection(connectionContext context.Context, conn n
 }
 
 func newPgPipeline(trans *PgTransport, conn *pgConn) (*pgPipeline, error) {
-	wr := wire.NewClientWire(conn.conn, conn.conn)
+	wr := conn.wire
 
 	p := &pgPipeline{
 		conn:              conn,

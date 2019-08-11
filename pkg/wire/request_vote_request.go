@@ -11,6 +11,8 @@ type RequestVoteRequest struct {
 
 func (RequestVoteRequest) Client() {}
 
+func (RequestVoteRequest) Raft() {}
+
 func (i *RequestVoteRequest) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendInt32(int32(i.ProtocolVersion))

@@ -9,8 +9,10 @@ import (
 	"github.com/elliotcourant/arkdb/pkg/network"
 	"github.com/elliotcourant/arkdb/pkg/storage"
 	"github.com/elliotcourant/arkdb/pkg/transport"
+	"github.com/elliotcourant/arkdb/pkg/transportwrapper"
 	"github.com/elliotcourant/timber"
 	"github.com/hashicorp/raft"
+	"net"
 	"os"
 	"sort"
 	"time"
@@ -37,7 +39,6 @@ type Options struct {
 	ListenAddress   string
 	Peers           []string
 	Join            bool
-	Transport       transport.Transport
 	LeaderWaitDelay time.Duration
 }
 
@@ -46,10 +47,12 @@ type boat struct {
 	options *Options
 	logger  timber.Logger
 	raft    *raft.Raft
+	ln      transportwrapper.TransportWrapper
 }
 
-func NewDistributor(options *Options, l timber.Logger) (Barge, error) {
-	addr, err := network.ResolveAddress(options.ListenAddress)
+func NewDistributor(listener net.Listener, options *Options, l timber.Logger) (Barge, error) {
+	ln := transportwrapper.NewTransportWrapperFromListener(listener)
+	addr, err := network.ResolveAddress(ln.Addr().String())
 	if err != nil {
 		return nil, err
 	}
@@ -64,23 +67,24 @@ func NewDistributor(options *Options, l timber.Logger) (Barge, error) {
 		options: options,
 		db:      db,
 		logger:  l,
+		ln:      ln,
 	}, nil
 }
 
 func (r *boat) Start() error {
-	addr, _ := network.ResolveAddress(r.options.ListenAddress)
-
+	r.runMasterServer()
+	r.runBoatServer()
 	_, newNode, err := r.determineNodeId()
 	if err != nil {
 		return err
 	}
 
-	r.logger = r.logger.Prefix(fmt.Sprintf("%s", addr))
+	r.logger = r.logger.Prefix(fmt.Sprintf("%s", r.options.ListenAddress))
 
 	r.logger.Infof("starting node at address [%s]", r.options.ListenAddress)
 
 	raftTransport := transport.NewPgTransportWithLogger(
-		r.options.Transport,
+		r.ln.RaftTransport(),
 		4,
 		time.Second*5,
 		r.logger)
@@ -96,9 +100,9 @@ func (r *boat) Start() error {
 		SnapshotInterval:   time.Minute * 5,
 		SnapshotThreshold:  512,
 		LeaderLeaseTimeout: time.Millisecond * 500,
-		LocalID:            raft.ServerID(addr),
+		LocalID:            raft.ServerID(r.options.ListenAddress),
 		NotifyCh:           nil,
-		Logger:             logger.NewLogger(addr),
+		Logger:             logger.NewLogger(r.options.ListenAddress),
 	}
 
 	snapshots, err := raft.NewFileSnapshotStore(r.options.Directory, 8, os.Stderr)
@@ -208,14 +212,15 @@ func (r *boat) waitForAmILeader(timeout time.Duration) (string, bool, error) {
 }
 
 func (r *boat) apply(tx storage.Transaction) error {
-	_, amLeader, err := r.waitForAmILeader(leaderWaitTimeout)
+	leaderAddr, amLeader, err := r.waitForAmILeader(leaderWaitTimeout)
 	if err != nil {
 		return fmt.Errorf("could not apply transaction: %v", err)
 	}
 	// If I am not the leader then we need to forward this transaction to the leader.
 	if !amLeader {
+		r.logger.Verbosef("redirecting apply command to leader [%s]", leaderAddr)
 
-		return nil
+		return raft.ErrNotLeader
 	}
 
 	applyFuture := r.raft.Apply(tx.Encode(), applyTimeout)
@@ -243,6 +248,24 @@ func (r *boat) fsmStore() raft.FSM {
 	return &raftFsmStore{
 		db: r.db,
 	}
+}
+
+func (r *boat) runMasterServer() {
+	ms := &masterServer{
+		boat:   r,
+		ln:     r.ln,
+		logger: r.logger,
+	}
+	ms.runMasterServer()
+}
+
+func (r *boat) runBoatServer() {
+	bs := &boatServer{
+		boat:   r,
+		ln:     r.ln.RpcTransport(),
+		logger: r.logger,
+	}
+	bs.runBoatServer()
 }
 
 func (r *boat) determineNodeId() (id nodeId, newNode bool, err error) {

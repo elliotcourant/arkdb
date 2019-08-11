@@ -11,6 +11,8 @@ type AppendEntriesRequest struct {
 
 func (AppendEntriesRequest) Client() {}
 
+func (AppendEntriesRequest) Raft() {}
+
 func (i *AppendEntriesRequest) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendInt32(int32(i.ProtocolVersion))

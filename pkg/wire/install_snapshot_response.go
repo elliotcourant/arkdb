@@ -12,6 +12,8 @@ type InstallSnapshotResponse struct {
 
 func (InstallSnapshotResponse) Server() {}
 
+func (InstallSnapshotResponse) Raft() {}
+
 func (i *InstallSnapshotResponse) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendInt32(int32(i.ProtocolVersion))

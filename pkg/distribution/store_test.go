@@ -17,12 +17,11 @@ func TestNewDistributor(t *testing.T) {
 		assert.NoError(t, err)
 
 		defer cleanup()
-		d, err := NewDistributor(&Options{
+		d, err := NewDistributor(ln, &Options{
 			Directory:     tempDir,
 			ListenAddress: ln.Addr().String(),
 			Peers:         []string{ln.Addr().String()},
 			Join:          false,
-			Transport:     ln,
 		}, timber.With(timber.Keys{
 			"test": t.Name(),
 		}))
@@ -36,7 +35,7 @@ func TestNewDistributor(t *testing.T) {
 	})
 
 	t.Run("multiple", func(t *testing.T) {
-		numberOfNodes := 9
+		numberOfNodes := 3
 
 		listeners := make([]transport.Transport, numberOfNodes)
 		peers := make([]string, numberOfNodes)
@@ -55,12 +54,11 @@ func TestNewDistributor(t *testing.T) {
 				tempDir, cleanup := testutils.NewTempDirectory(t)
 				cleanups[i] = cleanup
 
-				d, err := NewDistributor(&Options{
+				d, err := NewDistributor(listeners[i], &Options{
 					Directory:     tempDir,
 					ListenAddress: listeners[i].Addr().String(),
 					Peers:         peers,
 					Join:          false,
-					Transport:     listeners[i],
 				}, timber.With(timber.Keys{
 					"test": t.Name(),
 				}))
@@ -86,6 +84,18 @@ func TestNewDistributor(t *testing.T) {
 			}(node)
 		}
 
-		time.Sleep(5 * time.Second)
+		time.Sleep(10 * time.Second)
+
+		// Make sure all of the nodes have the same leader
+		leaderAddr := ""
+		for _, node := range nodes {
+			addr, _, err := node.WaitForLeader(time.Second * 5)
+			assert.NoError(t, err)
+			if leaderAddr == "" {
+				leaderAddr = addr
+			}
+
+			assert.Equal(t, leaderAddr, addr)
+		}
 	})
 }

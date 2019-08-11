@@ -114,7 +114,9 @@ func (r raftLogStore) getIndexForKey(key []byte) uint64 {
 
 func (r raftLogStore) getKeyForIndex(index uint64) []byte {
 	k := r.getPrefix()
-	binary.BigEndian.PutUint64(k, index)
+	b := make([]byte, 8)
+	binary.BigEndian.PutUint64(b, index)
+	k = append(k, b...)
 	return k
 }
 

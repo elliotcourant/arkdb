@@ -10,6 +10,8 @@ type ErrorResponse struct {
 
 func (ErrorResponse) Server() {}
 
+func (ErrorResponse) Raft() {}
+
 func (i *ErrorResponse) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendError(i.Error)

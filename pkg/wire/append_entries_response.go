@@ -12,6 +12,8 @@ type AppendEntriesResponse struct {
 
 func (AppendEntriesResponse) Server() {}
 
+func (AppendEntriesResponse) Raft() {}
+
 func (i *AppendEntriesResponse) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendInt32(int32(i.ProtocolVersion))

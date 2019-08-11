@@ -97,6 +97,7 @@ func (t *transaction) Commit() error {
 	}
 	t.pendingWritesSync.RLock()
 	defer t.pendingWritesSync.RUnlock()
+	t.boat.logger.Verbosef("preparing to commit %d pending write(s)", len(t.pendingWrites))
 	for k, v := range t.pendingWrites {
 		actionType := storage.ActionTypeSet
 		if v == nil {
@@ -108,7 +109,7 @@ func (t *transaction) Commit() error {
 			Value: v,
 		})
 	}
-	return nil
+	return t.boat.apply(rtx)
 }
 
 func (t *transaction) addPendingWrite(key []byte, value []byte) {
