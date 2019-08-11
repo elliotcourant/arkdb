@@ -65,6 +65,8 @@ func writeWireMessage(msg Message) []byte {
 		buf.AppendByte(requestVoteResponse)
 	case *InstallSnapshotResponse:
 		buf.AppendByte(installSnapshotResponse)
+	case *ErrorResponse:
+		buf.AppendByte(errorResponse)
 	default:
 		panic(fmt.Sprintf("unrecognized message type for wire [%T]", msg))
 	}

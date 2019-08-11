@@ -177,7 +177,7 @@ func (r *boat) waitForAmILeader(timeout time.Duration) (string, bool, error) {
 }
 
 func (r *boat) apply(tx storage.Transaction) error {
-	leaderAddress, amLeader, err := r.waitForAmILeader(leaderWaitTimeout)
+	_, amLeader, err := r.waitForAmILeader(leaderWaitTimeout)
 	if err != nil {
 		return fmt.Errorf("could not apply transaction: %v", err)
 	}

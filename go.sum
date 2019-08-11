@@ -64,6 +64,10 @@ github.com/eknkc/amber v0.0.0-20171010120322-cdade1c07385 h1:clC1lXBpe2kTj2VHdaI
 github.com/eknkc/amber v0.0.0-20171010120322-cdade1c07385/go.mod h1:0vRUJqYpeSZifjYj7uP3BG/gKcuzL9xWVV/Y+cK33KM=
 github.com/elliotcourant/buffers v0.0.0-20190807195733-d42afc579b7e h1:0ZcPkcHjKhQ6zZsjCG+Jzs44RwGTMKZQs5l010CZN4M=
 github.com/elliotcourant/buffers v0.0.0-20190807195733-d42afc579b7e/go.mod h1:HlXYBHOFabpQUHiczNJNiV7eF4oqaZRCsRHv9BPJzFU=
+github.com/elliotcourant/buffers v0.0.0-20190811025141-1bbcb7a15380 h1:Vo4NYhTndEb9MAq2v9scQntDguO61pHoXevhbqA01u4=
+github.com/elliotcourant/buffers v0.0.0-20190811025141-1bbcb7a15380/go.mod h1:9+oLElsEQnueTyoq0dyr6RiJwELNE+YtLXh4BNAsnKg=
+github.com/elliotcourant/buffers v0.0.0-20190811025309-24fdba97ca9b h1:hnBfbE6sWwWGpCiFwSWvzsOxxuEujfmk+xYr+a98pHc=
+github.com/elliotcourant/buffers v0.0.0-20190811025309-24fdba97ca9b/go.mod h1:9+oLElsEQnueTyoq0dyr6RiJwELNE+YtLXh4BNAsnKg=
 github.com/elliotcourant/timber v0.0.0-20190722215549-948c7b1e3876 h1:4LDucqSy+bF4NRUwj00WElxpi1Xm58z5P5MODWndl8A=
 github.com/elliotcourant/timber v0.0.0-20190722215549-948c7b1e3876/go.mod h1:Qt+GcRn3FBq5YMmfc+MtIgGyN4fq3lZaRNYDlkOeigg=
 github.com/fatih/color v1.7.0/go.mod h1:Zm6kSWBoL9eyXnKyktHP6abPY2pDugNf5KwzbycvMj4=

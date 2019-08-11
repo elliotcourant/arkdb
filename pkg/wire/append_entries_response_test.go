@@ -8,6 +8,10 @@ import (
 	"testing"
 )
 
+func TestAppendEntriesResponse_Server(t *testing.T) {
+	AppendEntriesResponse{}.Server()
+}
+
 func TestAppendEntriesResponse(t *testing.T) {
 	t.Run("encode and decode", func(t *testing.T) {
 		appendEntry := AppendEntriesResponse{

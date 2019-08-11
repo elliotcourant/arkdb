@@ -51,7 +51,11 @@ func (r *raftClientWire) Receive() (ServerMessage, error) {
 	case appendEntriesResponse:
 		msg = &AppendEntriesResponse{}
 	case requestVoteResponse:
-	case installSnapshotRequest:
+		msg = &RequestVoteResponse{}
+	case installSnapshotResponse:
+		msg = &InstallSnapshotResponse{}
+	case errorResponse:
+		msg = &ErrorResponse{}
 	default:
 		return nil, fmt.Errorf("failed to handle server message of with header [%s]", string(r.msgType))
 	}

@@ -18,7 +18,7 @@ type Decoder interface {
 
 type Barge interface {
 	Start() error
-	WaitForLeader(timeout time.Duration) (string, error)
+	WaitForLeader(timeout time.Duration) (string, bool, error)
 	Begin() Transaction
 }
 

@@ -3,7 +3,6 @@ package wire
 import (
 	"github.com/elliotcourant/buffers"
 	"github.com/hashicorp/raft"
-	"github.com/pkg/errors"
 )
 
 type AppendEntriesResponse struct {
@@ -20,11 +19,7 @@ func (i *AppendEntriesResponse) Encode() []byte {
 	buf.AppendUint64(i.LastLog)
 	buf.AppendBool(i.Success)
 	buf.AppendBool(i.NoRetryBackoff)
-	if i.Error != nil {
-		buf.Append([]byte(i.Error.Error())...)
-	} else {
-		buf.Append()
-	}
+	buf.AppendError(i.Error)
 	return buf.Bytes()
 }
 
@@ -36,9 +31,6 @@ func (i *AppendEntriesResponse) Decode(src []byte) error {
 	i.LastLog = buf.NextUint64()
 	i.Success = buf.NextBool()
 	i.NoRetryBackoff = buf.NextBool()
-	err := buf.NextString()
-	if len(err) > 0 {
-		i.Error = errors.New(err)
-	}
+	i.Error = buf.NextError()
 	return nil
 }

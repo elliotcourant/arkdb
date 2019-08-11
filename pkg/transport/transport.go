@@ -5,7 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/elliotcourant/arkdb/pkg/wire"
-	"github.com/hashicorp/go-hclog"
+	"github.com/elliotcourant/timber"
 	"github.com/hashicorp/raft"
 	"io"
 	"net"
@@ -98,7 +98,7 @@ type PgTransport struct {
 	// In the other TCP transport we use a different
 	// logger, but to be consistent with what hashicorp's
 	// raft library uses, we should use this.
-	logger hclog.Logger
+	logger timber.Logger
 
 	maxPool int
 
@@ -122,7 +122,7 @@ type PgTransport struct {
 // internal behavior of the pg transport.
 type PgTransportConfig struct {
 	ServerAddressProvider ServerAddressProvider
-	Logger                hclog.Logger
+	Logger                timber.Logger
 	Stream                StreamLayer
 	MaxPool               int
 	Timeout               time.Duration
@@ -170,7 +170,7 @@ type pgPipeline struct {
 	shutdownChannel chan struct{}
 	shutdownLock    sync.Mutex
 
-	logger hclog.Logger
+	logger timber.Logger
 
 	wire wire.ClientWire
 }
@@ -179,7 +179,7 @@ func NewPgTransportWithConfig(
 	config *PgTransportConfig,
 ) *PgTransport {
 	if config.Logger == nil {
-		config.Logger = logger.NewLogger()
+		config.Logger = timber.New()
 	}
 	trans := &PgTransport{
 		connPool:              make(map[raft.ServerAddress][]*pgConn),
@@ -210,7 +210,7 @@ func NewPgTransport(
 	if logOutput == nil {
 		logOutput = os.Stderr
 	}
-	config := &PgTransportConfig{Stream: stream, MaxPool: maxPool, Timeout: timeout, Logger: logger.NewLogger()}
+	config := &PgTransportConfig{Stream: stream, MaxPool: maxPool, Timeout: timeout, Logger: timber.New()}
 	return NewPgTransportWithConfig(config)
 }
 
@@ -222,7 +222,7 @@ func NewPgTransportWithLogger(
 	stream StreamLayer,
 	maxPool int,
 	timeout time.Duration,
-	logger hclog.Logger,
+	logger timber.Logger,
 ) *PgTransport {
 	config := &PgTransportConfig{Stream: stream, MaxPool: maxPool, Timeout: timeout, Logger: logger}
 	return NewPgTransportWithConfig(config)
@@ -336,7 +336,7 @@ func (p *PgTransport) InstallSnapshot(
 	writer := bytes.NewBuffer(snapshot)
 
 	if _, err := io.Copy(writer, data); err != nil {
-		p.logger.Error("failed to copy snapshot data to bytes: %v", err)
+		p.logger.Errorf("failed to copy snapshot data to bytes: %v", err)
 		return err
 	}
 
@@ -358,9 +358,9 @@ func (p *PgTransport) InstallSnapshot(
 
 	if err := conn.wire.Send(&wire.InstallSnapshotRequest{
 		InstallSnapshotRequest: *args,
-		SnapshotData:           snapshot,
+		Snapshot:               snapshot,
 	}); err != nil {
-		p.logger.Error("failed sending snapshot to [%v]: %v", conn.conn.RemoteAddr(), err)
+		p.logger.Errorf("failed sending snapshot to [%v]: %v", conn.conn.RemoteAddr(), err)
 		return err
 	}
 
@@ -389,7 +389,7 @@ func (p *PgTransport) genericRPC(id raft.ServerID, target raft.ServerAddress, ar
 	}
 
 	if err := conn.wire.Send(args); err != nil {
-		p.logger.Error("when sending RPC to [%v]: %v", conn.conn.RemoteAddr(), err)
+		p.logger.Errorf("when sending RPC to [%v]: %v", conn.conn.RemoteAddr(), err)
 		return err
 	}
 
@@ -402,7 +402,7 @@ func (p *PgTransport) receiveResponse(conn *pgConn, response interface{}) error 
 		if err == io.EOF || p.IsShutdown() {
 			return nil
 		}
-		p.logger.Error("could not receive message from [%v]: %v", conn.conn.RemoteAddr(), err)
+		p.logger.Errorf("could not receive message from [%v]: %v", conn.conn.RemoteAddr(), err)
 		return err
 	}
 
@@ -415,14 +415,14 @@ func (p *PgTransport) receiveResponse(conn *pgConn, response interface{}) error 
 			if r, ok := response.(*raft.AppendEntriesResponse); ok {
 				*r = msg.AppendEntriesResponse
 			} else {
-				p.logger.Warn("received %T but was expecting to received %T", msg, response)
+				p.logger.Warningf("received %T but was expecting to received %T", msg, response)
 			}
 		case *wire.RequestVoteResponse:
 			err = msg.Error
 			if r, ok := response.(*raft.RequestVoteResponse); ok {
 				*r = msg.RequestVoteResponse
 			} else {
-				p.logger.Warn("received %T but was expecting to received %T", msg, response)
+				p.logger.Warningf("received %T but was expecting to received %T", msg, response)
 			}
 			response = msg.RequestVoteResponse
 		case *wire.InstallSnapshotResponse:
@@ -430,7 +430,7 @@ func (p *PgTransport) receiveResponse(conn *pgConn, response interface{}) error 
 			if r, ok := response.(*raft.InstallSnapshotResponse); ok {
 				*r = msg.InstallSnapshotResponse
 			} else {
-				p.logger.Warn("received %T but was expecting to received %T", msg, response)
+				p.logger.Warningf("received %T but was expecting to received %T", msg, response)
 			}
 			response = msg.InstallSnapshotResponse
 		case *wire.ErrorResponse:
@@ -475,7 +475,7 @@ func (p *PgTransport) getProviderAddressOrFallback(
 	if p.serverAddressProvider != nil {
 		serverAddressOverride, err := p.serverAddressProvider.ServerAddr(id)
 		if err != nil {
-			p.logger.Warn("unable to get address for server id %v, using fallback address %v: %v", id, target, err)
+			p.logger.Warningf("unable to get address for server id %v, using fallback address %v: %v", id, target, err)
 		} else {
 			return serverAddressOverride
 		}
@@ -492,7 +492,7 @@ func (p *PgTransport) getConn(target raft.ServerAddress) (*pgConn, error) {
 	// Dial a new connection
 	conn, err := p.stream.Dial(target, p.timeout)
 	if err != nil {
-		p.logger.Error("could not dial connection for [%v]: %v", target, err)
+		p.logger.Errorf("could not dial connection for [%v]: %v", target, err)
 		return nil, err
 	}
 
@@ -539,10 +539,10 @@ func (p *PgTransport) listen() {
 			if p.IsShutdown() {
 				return
 			}
-			p.logger.Error("failed to accept connection: %v", err)
+			p.logger.Errorf("failed to accept connection: %v", err)
 			continue
 		}
-		p.logger.Debug("%v accepted connection from: %v", p.LocalAddr(), conn.RemoteAddr())
+		p.logger.Debugf("%v accepted connection from: %v", p.LocalAddr(), conn.RemoteAddr())
 
 		go p.handleConnection(p.getStreamContext(), conn)
 	}
@@ -563,7 +563,7 @@ func (p *PgTransport) handleConnection(connectionContext context.Context, conn n
 		request, err := wr.Receive()
 		if err != nil {
 			if err != io.EOF {
-				p.logger.Error("failed to receive message from [%v]: %v", conn.RemoteAddr(), err)
+				p.logger.Errorf("failed to receive message from [%v]: %v", conn.RemoteAddr(), err)
 			}
 			return
 		}
@@ -590,7 +590,7 @@ func (p *PgTransport) handleConnection(connectionContext context.Context, conn n
 			rpc.Command = &req.InstallSnapshotRequest
 			rpc.Reader = req.Reader()
 		default:
-			p.logger.Error("did not recognize request type [%v] from [%v]: %v", req, conn.RemoteAddr(), err)
+			p.logger.Errorf("did not recognize request type [%v] from [%v]: %v", req, conn.RemoteAddr(), err)
 			return
 		}
 
@@ -641,11 +641,11 @@ func (p *PgTransport) handleConnection(connectionContext context.Context, conn n
 			}
 
 			if err := wr.Send(msg); err != nil {
-				p.logger.Error("failed to send response to [%v]: %v", conn.RemoteAddr(), err)
+				p.logger.Errorf("failed to send response to [%v]: %v", conn.RemoteAddr(), err)
 				return
 			}
 		case <-p.shutdownChannel:
-			p.logger.Warn("closing transport due to shutdown")
+			p.logger.Warningf("closing transport due to shutdown")
 			return
 		}
 	}
@@ -660,7 +660,7 @@ func newPgPipeline(trans *PgTransport, conn *pgConn) (*pgPipeline, error) {
 		doneChannel:       make(chan raft.AppendFuture, rpcMaxPipeline),
 		inProgressChannel: make(chan *appendFuture, rpcMaxPipeline),
 		shutdownChannel:   make(chan struct{}),
-		logger:            logger.NewLogger(),
+		logger:            timber.New(),
 		wire:              wr,
 	}
 
@@ -738,7 +738,7 @@ func (p *pgPipeline) processResponses() {
 
 				response, err := p.wire.Receive()
 				if err != nil {
-					p.logger.Error("could not process response from [%v]: %v", p.conn.conn.RemoteAddr(), err)
+					p.logger.Errorf("could not process response from [%v]: %v", p.conn.conn.RemoteAddr(), err)
 					future.respond(err)
 					return
 				}
