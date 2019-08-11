@@ -180,6 +180,9 @@ func (r *boat) Start() error {
 func (r *boat) Leader() raft.ServerAddress {
 	r.raftSync.RLock()
 	defer r.raftSync.RUnlock()
+	if r.raft == nil {
+		return raft.ServerAddress("")
+	}
 	return r.raft.Leader()
 }
 

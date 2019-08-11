@@ -86,7 +86,7 @@ func TestNewDistributor(t *testing.T) {
 			}(node)
 		}
 
-		time.Sleep(10 * time.Second)
+		// time.Sleep(10 * time.Second)
 
 		// Make sure all of the nodes have the same leader
 		leaderAddr := ""
@@ -151,7 +151,7 @@ func TestNewDistributor(t *testing.T) {
 			}(node)
 		}
 
-		time.Sleep(10 * time.Second)
+		// time.Sleep(10 * time.Second)
 
 		// Make sure all of the nodes have the same leader
 		leaderAddr := ""

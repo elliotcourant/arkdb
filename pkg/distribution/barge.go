@@ -89,6 +89,8 @@ func (t *transaction) Rollback() error {
 }
 
 func (t *transaction) Commit() error {
+	startTime := time.Now()
+	defer t.boat.logger.Verbosef("time to commit: %s", time.Since(startTime))
 	if t.isFinished() {
 		return fmt.Errorf("transaction closed")
 	}
