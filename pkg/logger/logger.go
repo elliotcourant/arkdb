@@ -7,7 +7,40 @@ import (
 	"log"
 )
 
-type Logger interface {
+type BadgerLogger interface {
+	Errorf(string, ...interface{})
+	Warningf(string, ...interface{})
+	Infof(string, ...interface{})
+	Debugf(string, ...interface{})
+}
+
+func NewBadgerLogger(l timber.Logger) BadgerLogger {
+	return &blogger{
+		l: l.With(timber.Keys{}).SetDepth(2),
+	}
+}
+
+type blogger struct {
+	l timber.Logger
+}
+
+func (l *blogger) Errorf(msg string, args ...interface{}) {
+	l.l.Errorf(msg, args...)
+}
+
+func (l *blogger) Warningf(msg string, args ...interface{}) {
+	l.l.Warningf(msg, args...)
+}
+
+func (l *blogger) Infof(msg string, args ...interface{}) {
+	l.l.Infof(msg, args...)
+}
+
+func (l *blogger) Debugf(msg string, args ...interface{}) {
+	l.l.Debugf(msg, args...)
+}
+
+type RaftLogger interface {
 	// Args are alternating key, val pairs
 	// keys must be strings
 	// vals can be any type, but display is implementation specific
@@ -60,14 +93,14 @@ type Logger interface {
 	// implementation cannot update the level on the fly, it should no-op.
 	SetLevel(level hclog.Level)
 
-	// Return a value that conforms to the stdlib log.Logger interface
+	// Return a value that conforms to the stdlib log.RaftLogger interface
 	StandardLogger(opts *hclog.StandardLoggerOptions) *log.Logger
 
 	// Return a value that conforms to io.Writer, which can be passed into log.SetOutput()
 	StandardWriter(opts *hclog.StandardLoggerOptions) io.Writer
 }
 
-func NewLogger(addr string) Logger {
+func NewLogger(addr string) RaftLogger {
 	//
 	// l := timber.New()
 	//

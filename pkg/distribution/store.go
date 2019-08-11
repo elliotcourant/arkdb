@@ -48,13 +48,14 @@ type boat struct {
 	raft    *raft.Raft
 }
 
-func NewDistributor(options *Options, logger timber.Logger) (Barge, error) {
+func NewDistributor(options *Options, l timber.Logger) (Barge, error) {
 	addr, err := network.ResolveAddress(options.ListenAddress)
 	if err != nil {
 		return nil, err
 	}
 	options.ListenAddress = addr
 	dbOptions := badger.DefaultOptions(options.Directory)
+	dbOptions.Logger = logger.NewBadgerLogger(l)
 	db, err := badger.Open(dbOptions)
 	if err != nil {
 		return nil, err
@@ -62,7 +63,7 @@ func NewDistributor(options *Options, logger timber.Logger) (Barge, error) {
 	return &boat{
 		options: options,
 		db:      db,
-		logger:  logger,
+		logger:  l,
 	}, nil
 }
 
