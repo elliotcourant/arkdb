@@ -41,7 +41,7 @@ func (r *raftStableStore) SetUint64(key []byte, val uint64) error {
 
 func (r *raftStableStore) GetUint64(key []byte) (uint64, error) {
 	v, err := r.Get(key)
-	if err != nil {
+	if err != nil || v == nil {
 		return 0, err
 	}
 	return binary.BigEndian.Uint64(v), nil

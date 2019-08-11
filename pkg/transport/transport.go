@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/elliotcourant/arkdb/pkg/network"
 	"github.com/elliotcourant/arkdb/pkg/wire"
 	"github.com/elliotcourant/timber"
 	"github.com/hashicorp/raft"
@@ -13,6 +14,22 @@ import (
 	"sync"
 	"time"
 )
+
+func NewTransport(address string) (Transport, error) {
+	l, err := net.Listen("tcp", address)
+	if err != nil {
+		return nil, err
+	}
+	return &transport{l}, nil
+}
+
+type transport struct {
+	net.Listener
+}
+
+func (transport) Dial(address raft.ServerAddress, timeout time.Duration) (net.Conn, error) {
+	return net.DialTimeout("tcp", string(address), timeout)
+}
 
 type Transport interface {
 	Accept() (net.Conn, error)
@@ -116,6 +133,10 @@ type PgTransport struct {
 
 	timeout      time.Duration
 	timeoutScale int
+}
+
+func (p *PgTransport) TimeoutNow(id raft.ServerID, target raft.ServerAddress, args *raft.TimeoutNowRequest, resp *raft.TimeoutNowResponse) error {
+	panic("implement me")
 }
 
 // PgTransportConfig exposes just a few ways to tweak the
@@ -239,7 +260,11 @@ func (p *PgTransport) SetHeartbeatHandler(callback func(rpc raft.RPC)) {
 
 // LocalAddr implements the Transport interface.
 func (p *PgTransport) LocalAddr() raft.ServerAddress {
-	return raft.ServerAddress(p.stream.Addr().String())
+	addr, err := network.ResolveAddress(p.stream.Addr().String())
+	if err != nil {
+		return raft.ServerAddress(p.stream.Addr().String())
+	}
+	return raft.ServerAddress(addr)
 }
 
 func (p *PgTransport) IsShutdown() bool {
@@ -542,7 +567,7 @@ func (p *PgTransport) listen() {
 			p.logger.Errorf("failed to accept connection: %v", err)
 			continue
 		}
-		p.logger.Debugf("%v accepted connection from: %v", p.LocalAddr(), conn.RemoteAddr())
+		// p.logger.Debugf("%v accepted connection from: %v", p.LocalAddr(), conn.RemoteAddr())
 
 		go p.handleConnection(p.getStreamContext(), conn)
 	}

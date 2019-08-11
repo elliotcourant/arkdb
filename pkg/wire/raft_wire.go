@@ -1,10 +1,11 @@
 package wire
 
 import (
-	"encoding/binary"
 	"fmt"
+	"github.com/elliotcourant/buffers"
 	"github.com/jackc/pgx/chunkreader"
 	"io"
+	"time"
 )
 
 func NewClientWire(r io.ReadCloser, w io.WriteCloser) ClientWire {
@@ -29,12 +30,13 @@ type raftServerWire struct {
 	cr         *chunkreader.ChunkReader
 	r          io.ReadCloser
 	w          io.WriteCloser
-	bodyLen    int
+	bodyLen    int32
 	msgType    clientMessageType
 	partialMsg bool
 }
 
 func (r *raftServerWire) Send(msg ServerMessage) error {
+	time.Sleep(time.Millisecond * 1)
 	_, err := r.w.Write(writeWireMessage(msg))
 	return err
 }
@@ -46,9 +48,9 @@ func (r *raftServerWire) Receive() (ClientMessage, error) {
 			return nil, err
 		}
 
-		r.msgType = header[0]
-		r.bodyLen = int(binary.BigEndian.Uint32(header[1:])) - 4
-		r.partialMsg = true
+		buf := buffers.NewBytesReader(header)
+		r.msgType = buf.NextUint8()
+		r.bodyLen = buf.NextInt32()
 	}
 
 	var msg ClientMessage
@@ -63,7 +65,7 @@ func (r *raftServerWire) Receive() (ClientMessage, error) {
 		return nil, fmt.Errorf("failed to handle client message of with header [%s]", string(r.msgType))
 	}
 
-	msgBody, err := r.cr.Next(r.bodyLen)
+	msgBody, err := r.cr.Next(int(r.bodyLen))
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +81,13 @@ type raftClientWire struct {
 	cr         *chunkreader.ChunkReader
 	r          io.ReadCloser
 	w          io.WriteCloser
-	bodyLen    int
+	bodyLen    int32
 	msgType    serverMessageType
 	partialMsg bool
 }
 
 func (r *raftClientWire) Send(msg ClientMessage) error {
+	time.Sleep(time.Millisecond * 1)
 	_, err := r.w.Write(writeWireMessage(msg))
 	return err
 }
@@ -96,9 +99,9 @@ func (r *raftClientWire) Receive() (ServerMessage, error) {
 			return nil, err
 		}
 
-		r.msgType = header[0]
-		r.bodyLen = int(binary.BigEndian.Uint32(header[1:])) - 4
-		r.partialMsg = true
+		buf := buffers.NewBytesReader(header)
+		r.msgType = buf.NextUint8()
+		r.bodyLen = buf.NextInt32()
 	}
 
 	var msg ServerMessage
@@ -115,13 +118,12 @@ func (r *raftClientWire) Receive() (ServerMessage, error) {
 		return nil, fmt.Errorf("failed to handle server message of with header [%s]", string(r.msgType))
 	}
 
-	msgBody, err := r.cr.Next(r.bodyLen)
+	msgBody, err := r.cr.Next(int(r.bodyLen))
 	if err != nil {
 		return nil, err
 	}
 
 	r.partialMsg = false
-
 	err = msg.Decode(msgBody)
 
 	return msg, err

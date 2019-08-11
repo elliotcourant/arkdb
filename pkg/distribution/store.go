@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ahmetb/go-linq/v3"
 	"github.com/dgraph-io/badger"
+	"github.com/elliotcourant/arkdb/pkg/logger"
 	"github.com/elliotcourant/arkdb/pkg/network"
 	"github.com/elliotcourant/arkdb/pkg/storage"
 	"github.com/elliotcourant/arkdb/pkg/transport"
@@ -48,8 +49,13 @@ type boat struct {
 }
 
 func NewDistributor(options *Options, logger timber.Logger) (Barge, error) {
+	addr, err := network.ResolveAddress(options.ListenAddress)
+	if err != nil {
+		return nil, err
+	}
+	options.ListenAddress = addr
 	dbOptions := badger.DefaultOptions(options.Directory)
-	db, err := badger.OpenManaged(dbOptions)
+	db, err := badger.Open(dbOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -61,22 +67,22 @@ func NewDistributor(options *Options, logger timber.Logger) (Barge, error) {
 }
 
 func (r *boat) Start() error {
-	nodeId, newNode, err := r.determineNodeId()
+	addr, _ := network.ResolveAddress(r.options.ListenAddress)
+
+	_, newNode, err := r.determineNodeId()
 	if err != nil {
 		return err
 	}
 
-	r.logger = r.logger.Prefix(fmt.Sprintf("%d", nodeId))
+	r.logger = r.logger.Prefix(fmt.Sprintf("%s", addr))
 
-	r.logger.Info("starting node")
+	r.logger.Infof("starting node at address [%s]", r.options.ListenAddress)
 
-	raftTransport := raft.NewNetworkTransportWithConfig(&raft.NetworkTransportConfig{
-		Stream:  r.options.Transport,
-		MaxPool: 4,
-		Timeout: time.Second * 5,
-	})
-
-	notifyChannel := make(chan bool, 0)
+	raftTransport := transport.NewPgTransportWithLogger(
+		r.options.Transport,
+		4,
+		time.Second*5,
+		r.logger)
 
 	config := &raft.Config{
 		ProtocolVersion:    raft.ProtocolVersionMax,
@@ -88,9 +94,10 @@ func (r *boat) Start() error {
 		TrailingLogs:       128,
 		SnapshotInterval:   time.Minute * 5,
 		SnapshotThreshold:  512,
-		LeaderLeaseTimeout: time.Second * 5,
-		LocalID:            nodeId.RaftID(),
-		NotifyCh:           notifyChannel,
+		LeaderLeaseTimeout: time.Millisecond * 500,
+		LocalID:            raft.ServerID(addr),
+		NotifyCh:           nil,
+		Logger:             logger.NewLogger(addr),
 	}
 
 	snapshots, err := raft.NewFileSnapshotStore(r.options.Directory, 8, os.Stderr)
@@ -127,9 +134,67 @@ func (r *boat) Start() error {
 			},
 		}
 		rft.BootstrapCluster(configuration)
+
+	} else if len(r.options.Peers) > 1 && newNode && !r.options.Join {
+		// r.logger.Infof("bootstrapping")
+		// configuration := raft.Configuration{
+		// 	Servers: []raft.Server{
+		// 		{
+		// 			ID:      raft.ServerID(addr),
+		// 			Address: raft.ServerAddress(addr),
+		// 		},
+		// 	},
+		// }
+		// rft.BootstrapCluster(configuration)
+
+		r.logger.Infof("bootstrapping")
+
+		servers := make([]raft.Server, len(r.options.Peers))
+
+		for i, peer := range r.options.Peers {
+			peerAddr, err := network.ResolveAddress(peer)
+			if err != nil {
+				return err
+			}
+			servers[i] = raft.Server{
+				ID:      raft.ServerID(peerAddr),
+				Address: raft.ServerAddress(peerAddr),
+			}
+		}
+
+		configuration := raft.Configuration{
+			Servers: servers,
+		}
+		bootstrapResult := rft.BootstrapCluster(configuration)
+		if err := bootstrapResult.Error(); err != nil {
+			r.logger.Errorf("failed to bootstrap: %v", err)
+		} else {
+			r.logger.Infof("successfully bootstrapped node")
+		}
+
 	}
 	r.logger.Info("raft started")
 	r.raft = rft
+
+	// r.WaitForLeader(time.Second * 5)
+	//
+	// if r.IsLeader() {
+	// 	for _, peer := range r.options.Peers {
+	// 		peerAddr, _ := network.ResolveAddress(peer)
+	// 		if peerAddr == addr {
+	// 			continue
+	// 		}
+	// 		r.logger.Infof("trying to add [%s] to the cluster", peer)
+	// 		ftr := r.raft.AddVoter(raft.ServerID(peer), raft.ServerAddress(peer), 0, 0)
+	// 		if err := ftr.Error(); err != nil {
+	// 			r.logger.Errorf("failed to add voter: %v", err)
+	// 			continue
+	// 		}
+	// 		i := ftr.Index()
+	// 		r.logger.Infof("successfully added voter [%s] index: %d", peer, i)
+	// 	}
+	// }
+
 	return nil
 }
 
