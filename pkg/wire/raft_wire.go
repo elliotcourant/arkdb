@@ -7,6 +7,65 @@ import (
 	"io"
 )
 
+func NewRpcClientWire(r io.ReadCloser, w io.WriteCloser) (RpcClientWire, error) {
+	wr := NewClientWire(r, w)
+
+	err := wr.HandshakeRpc()
+	if err != nil {
+		return nil, err
+	}
+
+	return &rpcClientWire{
+		ClientWire: wr,
+	}, nil
+}
+
+func NewRpcServerWire(r io.ReadCloser, w io.WriteCloser) RpcServerWire {
+	return &rpcServerWire{
+		ServerWire: NewServerWire(r, w),
+	}
+}
+
+type rpcClientWire struct {
+	ClientWire
+}
+
+func (r *rpcClientWire) Send(msg RpcClientMessage) error {
+	return r.ClientWire.Send(msg)
+}
+
+func (r *rpcClientWire) Receive() (RpcServerMessage, error) {
+	msg, err := r.ClientWire.Receive()
+	if err != nil {
+		return nil, err
+	}
+	raftMsg, ok := msg.(RpcServerMessage)
+	if !ok {
+		return nil, fmt.Errorf("expected rpc server message, received [%T]", msg)
+	}
+	return raftMsg, nil
+}
+
+type rpcServerWire struct {
+	ServerWire
+}
+
+func (r *rpcServerWire) Send(msg RpcServerMessage) error {
+	return r.ServerWire.Send(msg)
+}
+
+func (r *rpcServerWire) Receive() (RpcClientMessage, error) {
+	msg, err := r.ServerWire.Receive()
+	if err != nil {
+		return nil, err
+	}
+	raftMsg, ok := msg.(RpcClientMessage)
+	if !ok {
+		return nil, fmt.Errorf("expected rpc client message, received [%T]", msg)
+	}
+	return raftMsg, nil
+}
+
 func NewRaftClientWire(r io.ReadCloser, w io.WriteCloser) (RaftClientWire, error) {
 	wr := NewClientWire(r, w)
 
@@ -131,6 +190,9 @@ func (r *serverWire) Receive() (ClientMessage, error) {
 	case discoveryRequest:
 		msg = &DiscoveryRequest{}
 
+	case applyTransactionRequest:
+		msg = &ApplyTransactionRequest{}
+
 	default:
 		return nil, fmt.Errorf("failed to handle client message of with header [%s]", string(r.msgType))
 	}
@@ -222,6 +284,8 @@ func (r *clientWire) Receive() (ServerMessage, error) {
 
 	case discoveryResponse:
 		msg = &DiscoveryResponse{}
+	case applyTransactionResponse:
+		msg = &ApplyTransactionResponse{}
 
 	default:
 		return nil, fmt.Errorf("failed to handle server message of with header [%s]", string(r.msgType))

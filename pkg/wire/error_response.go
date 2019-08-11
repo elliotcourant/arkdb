@@ -12,6 +12,8 @@ func (ErrorResponse) Server() {}
 
 func (ErrorResponse) Raft() {}
 
+func (ErrorResponse) RPC() {}
+
 func (i *ErrorResponse) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendError(i.Error)

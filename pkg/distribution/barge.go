@@ -19,6 +19,7 @@ type Decoder interface {
 type Barge interface {
 	Start() error
 	WaitForLeader(timeout time.Duration) (string, bool, error)
+	IsLeader() bool
 	Begin() Transaction
 }
 
@@ -56,9 +57,13 @@ func (t *transaction) Get(key []byte, value Decoder) error {
 		return err
 	}
 	val := make([]byte, item.ValueSize())
-	if _, err = item.ValueCopy(val); err != nil {
+	val, err = item.ValueCopy(val)
+	if err != nil {
 		return err
 	}
+	// if _, err = item.ValueCopy(val); err != nil {
+	// 	return err
+	// }
 	return value.Decode(val)
 }
 
@@ -93,7 +98,8 @@ func (t *transaction) Commit() error {
 		return nil
 	}
 	rtx := storage.Transaction{
-		Actions: make([]storage.Action, 0),
+		Timestamp: uint64(time.Now().UTC().UnixNano()),
+		Actions:   make([]storage.Action, 0),
 	}
 	t.pendingWritesSync.RLock()
 	defer t.pendingWritesSync.RUnlock()

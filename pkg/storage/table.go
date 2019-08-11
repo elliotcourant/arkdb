@@ -12,7 +12,22 @@ type Table struct {
 }
 
 func (i Table) Encode() []byte {
-	return make([]byte, 0)
+	buf := buffers.NewBytesBuffer()
+	buf.AppendUint8(i.TableID)
+	buf.AppendUint8(i.DatabaseID)
+	buf.AppendUint8(i.SchemaID)
+	buf.AppendString(i.TableName)
+	return buf.Bytes()
+}
+
+func (i *Table) Decode(src []byte) error {
+	*i = Table{}
+	buf := buffers.NewBytesReader(src)
+	i.TableID = buf.NextUint8()
+	i.DatabaseID = buf.NextUint8()
+	i.SchemaID = buf.NextUint8()
+	i.TableName = buf.NextString()
+	return nil
 }
 
 func (i Table) Path() []byte {

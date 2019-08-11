@@ -12,20 +12,23 @@ type (
 
 // Client Message Types
 const (
-	appendEntriesRequest   clientMessageType = 'a'
-	requestVoteRequest     clientMessageType = 'v'
-	installSnapshotRequest clientMessageType = 'i'
-	discoveryRequest       clientMessageType = 'd'
-	handshakeRequest       clientMessageType = 'h'
+	appendEntriesRequest    clientMessageType = 'a'
+	requestVoteRequest      clientMessageType = 'v'
+	installSnapshotRequest  clientMessageType = 'i'
+	discoveryRequest        clientMessageType = 'd'
+	handshakeRequest        clientMessageType = 'h'
+	applyTransactionRequest clientMessageType = 't'
 )
 
 const (
-	appendEntriesResponse   serverMessageType = 'A'
-	requestVoteResponse     serverMessageType = 'V'
-	installSnapshotResponse serverMessageType = 'I'
-	discoveryResponse       serverMessageType = 'D'
-	handshakeResponse       serverMessageType = 'H'
-	errorResponse           serverMessageType = 'E'
+	appendEntriesResponse    serverMessageType = 'A'
+	requestVoteResponse      serverMessageType = 'V'
+	installSnapshotResponse  serverMessageType = 'I'
+	discoveryResponse        serverMessageType = 'D'
+	handshakeResponse        serverMessageType = 'H'
+	applyTransactionResponse serverMessageType = 'T'
+
+	errorResponse serverMessageType = 'E'
 )
 
 type Message interface {
@@ -43,6 +46,11 @@ type RaftClientMessage interface {
 	Raft()
 }
 
+type RpcClientMessage interface {
+	ClientMessage
+	RPC()
+}
+
 type ServerMessage interface {
 	Message
 	Server()
@@ -51,6 +59,11 @@ type ServerMessage interface {
 type RaftServerMessage interface {
 	ServerMessage
 	Raft()
+}
+
+type RpcServerMessage interface {
+	ServerMessage
+	RPC()
 }
 
 type ClientWire interface {
@@ -75,6 +88,16 @@ type RaftServerWire interface {
 	Receive() (RaftClientMessage, error)
 }
 
+type RpcClientWire interface {
+	Send(msg RpcClientMessage) error
+	Receive() (RpcServerMessage, error)
+}
+
+type RpcServerWire interface {
+	Send(msg RpcServerMessage) error
+	Receive() (RpcClientMessage, error)
+}
+
 func writeWireMessage(msg Message) []byte {
 	buf := buffers.NewBytesBuffer()
 	switch msg.(type) {
@@ -88,6 +111,8 @@ func writeWireMessage(msg Message) []byte {
 		buf.AppendByte(discoveryRequest)
 	case *HandshakeRequest:
 		buf.AppendByte(handshakeRequest)
+	case *ApplyTransactionRequest:
+		buf.AppendByte(applyTransactionRequest)
 
 	case *AppendEntriesResponse:
 		buf.AppendByte(appendEntriesResponse)
@@ -99,6 +124,9 @@ func writeWireMessage(msg Message) []byte {
 		buf.AppendByte(discoveryResponse)
 	case *HandshakeResponse:
 		buf.AppendByte(handshakeResponse)
+	case *ApplyTransactionResponse:
+		buf.AppendByte(applyTransactionResponse)
+
 	case *ErrorResponse:
 		buf.AppendByte(errorResponse)
 	default:

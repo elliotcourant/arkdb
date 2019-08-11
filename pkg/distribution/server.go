@@ -6,6 +6,7 @@ import (
 	"github.com/elliotcourant/arkdb/pkg/transportwrapper"
 	"github.com/elliotcourant/arkdb/pkg/wire"
 	"github.com/elliotcourant/timber"
+	"io"
 	"net"
 )
 
@@ -85,7 +86,7 @@ func (i *boatServer) runBoatServer() {
 			}
 
 			go func(i *boatServer, conn net.Conn) {
-				if err := i.handleConn(conn); err != nil {
+				if err := i.handleConn(conn); err != nil && err != io.EOF {
 					i.logger.Errorf("failed to handle connection: %v", err)
 				}
 			}(i, conn)
@@ -94,5 +95,46 @@ func (i *boatServer) runBoatServer() {
 }
 
 func (i *boatServer) handleConn(conn net.Conn) error {
-	return nil
+	r := wire.NewRpcServerWire(conn, conn)
+
+	for {
+		receivedMsg, err := r.Receive()
+		if err != nil {
+			return err
+		}
+
+		switch msg := receivedMsg.(type) {
+		case *wire.ApplyTransactionRequest:
+			i.logger.Verbosef("received apply transaction request from [%s]", msg.NodeID)
+			e := i.boat.apply(*msg.Transaction)
+			if e != nil {
+				if err := r.Send(&wire.ErrorResponse{
+					Error: e,
+				}); err != nil {
+					return err
+				}
+			} else {
+				if err := r.Send(&wire.ApplyTransactionResponse{}); err != nil {
+					return err
+				}
+			}
+		case *wire.DiscoveryRequest:
+			myNodeId, newNode := i.boat.nodeId, i.boat.newNode
+			response := &wire.DiscoveryResponse{
+				NodeID:    myNodeId.RaftID(),
+				IsNewNode: newNode,
+			}
+			if err := r.Send(response); err != nil {
+				return err
+			}
+		default:
+			e := fmt.Errorf("invalid rpc message received [%d]", msg)
+			if err := r.Send(&wire.ErrorResponse{
+				Error: e,
+			}); err != nil {
+				return err
+			}
+			return e
+		}
+	}
 }

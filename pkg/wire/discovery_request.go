@@ -11,6 +11,8 @@ type DiscoveryRequest struct {
 
 func (DiscoveryRequest) Client() {}
 
+func (DiscoveryRequest) RPC() {}
+
 func (i *DiscoveryRequest) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendString(string(i.NodeID))

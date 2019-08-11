@@ -1,7 +1,9 @@
 package distribution
 
 import (
+	"fmt"
 	"github.com/elliotcourant/arkdb/internal/testutils"
+	"github.com/elliotcourant/arkdb/pkg/storage"
 	"github.com/elliotcourant/arkdb/pkg/transport"
 	"github.com/elliotcourant/timber"
 	"github.com/stretchr/testify/assert"
@@ -96,6 +98,99 @@ func TestNewDistributor(t *testing.T) {
 			}
 
 			assert.Equal(t, leaderAddr, addr)
+		}
+	})
+
+	t.Run("non-leader write", func(t *testing.T) {
+		numberOfNodes := 9
+
+		listeners := make([]transport.Transport, numberOfNodes)
+		peers := make([]string, numberOfNodes)
+		for i := range listeners {
+			ln, err := transport.NewTransport(":")
+			assert.NoError(t, err)
+			listeners[i] = ln
+			peers[i] = ln.Addr().String()
+		}
+
+		cleanups := make([]func(), numberOfNodes)
+		nodes := make([]Barge, numberOfNodes)
+
+		for i := 0; i < numberOfNodes; i++ {
+			func() {
+				tempDir, cleanup := testutils.NewTempDirectory(t)
+				cleanups[i] = cleanup
+
+				d, err := NewDistributor(listeners[i], &Options{
+					Directory:     tempDir,
+					ListenAddress: listeners[i].Addr().String(),
+					Peers:         peers,
+					Join:          false,
+				}, timber.With(timber.Keys{
+					"test": t.Name(),
+				}))
+				assert.NoError(t, err)
+				assert.NotNil(t, d)
+
+				nodes[i] = d
+			}()
+		}
+
+		defer func(cleanups []func()) {
+			for _, cleanup := range cleanups {
+				cleanup()
+			}
+		}(cleanups)
+
+		timber.Debugf("created %d node(s), starting now", numberOfNodes)
+
+		for _, node := range nodes {
+			go func(node Barge) {
+				err := node.Start()
+				assert.NoError(t, err)
+			}(node)
+		}
+
+		time.Sleep(10 * time.Second)
+
+		// Make sure all of the nodes have the same leader
+		leaderAddr := ""
+		for _, node := range nodes {
+			addr, _, err := node.WaitForLeader(time.Second * 5)
+			assert.NoError(t, err)
+			if leaderAddr == "" {
+				leaderAddr = addr
+			}
+
+			assert.Equal(t, leaderAddr, addr)
+		}
+
+		for i, node := range nodes {
+			if node.IsLeader() {
+				continue
+			}
+
+			tx := node.Begin()
+
+			table := &storage.Table{
+				TableID:    uint8(i + 1),
+				DatabaseID: 1,
+				SchemaID:   3,
+				TableName:  fmt.Sprintf("table_%d", i),
+			}
+
+			err := tx.Set(table.Path(), table)
+			assert.NoError(t, err)
+
+			err = tx.Commit()
+			assert.NoError(t, err)
+
+			tx = node.Begin()
+
+			tableRead := &storage.Table{}
+			err = tx.Get(table.Path(), tableRead)
+			assert.NoError(t, err)
+			assert.Equal(t, table, tableRead)
 		}
 	})
 }

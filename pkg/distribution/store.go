@@ -43,6 +43,9 @@ type Options struct {
 }
 
 type boat struct {
+	id      raft.ServerID
+	nodeId  nodeId
+	newNode bool
 	db      *badger.DB
 	options *Options
 	logger  timber.Logger
@@ -74,10 +77,12 @@ func NewDistributor(listener net.Listener, options *Options, l timber.Logger) (B
 func (r *boat) Start() error {
 	r.runMasterServer()
 	r.runBoatServer()
-	_, newNode, err := r.determineNodeId()
+	nodeId, newNode, err := r.determineNodeId()
 	if err != nil {
 		return err
 	}
+
+	r.nodeId, r.newNode = nodeId, newNode
 
 	r.logger = r.logger.Prefix(fmt.Sprintf("%s", r.options.ListenAddress))
 
@@ -164,7 +169,8 @@ func (r *boat) Start() error {
 	}
 	r.logger.Info("raft started")
 	r.raft = rft
-
+	r.newNode = false
+	r.id = config.LocalID
 	return nil
 }
 
@@ -219,8 +225,33 @@ func (r *boat) apply(tx storage.Transaction) error {
 	// If I am not the leader then we need to forward this transaction to the leader.
 	if !amLeader {
 		r.logger.Verbosef("redirecting apply command to leader [%s]", leaderAddr)
-
-		return raft.ErrNotLeader
+		c, err := r.newRpcConnectionTo(leaderAddr)
+		if err != nil {
+			return err
+		}
+		defer c.Close()
+		err = c.ApplyTransaction(tx)
+		if err != nil {
+			return err
+		}
+		r.logger.Verbosef("remote apply was successful, applying locally")
+		return r.db.Update(func(txn *badger.Txn) error {
+			for _, action := range tx.Actions {
+				switch action.Type {
+				case storage.ActionTypeSet:
+					if err := txn.Set(action.Key, action.Value); err != nil {
+						return err
+					}
+				case storage.ActionTypeDelete:
+					if err := txn.Delete(action.Key); err != nil {
+						return err
+					}
+				default:
+					return fmt.Errorf("invalid action type [%d]", action.Type)
+				}
+			}
+			return nil
+		})
 	}
 
 	applyFuture := r.raft.Apply(tx.Encode(), applyTimeout)
@@ -228,7 +259,7 @@ func (r *boat) apply(tx storage.Transaction) error {
 		return err
 	}
 	response := applyFuture.Response()
-	r.logger.Debugf("apply response: (%T) %v", response, response)
+	r.logger.Verbosef("apply response: (%T) %v", response, response)
 	return nil
 }
 
@@ -246,7 +277,8 @@ func (r *boat) logStore() raft.LogStore {
 
 func (r *boat) fsmStore() raft.FSM {
 	return &raftFsmStore{
-		db: r.db,
+		db:     r.db,
+		logger: r.logger,
 	}
 }
 

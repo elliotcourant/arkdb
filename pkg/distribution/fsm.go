@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"github.com/dgraph-io/badger"
 	"github.com/elliotcourant/arkdb/pkg/storage"
+	"github.com/elliotcourant/timber"
 	"github.com/hashicorp/raft"
 	"io"
+	"time"
 )
 
 type raftFsmStore struct {
-	db *badger.DB
+	db     *badger.DB
+	logger timber.Logger
 }
 
 func (r *raftFsmStore) Apply(log *raft.Log) interface{} {
@@ -17,6 +20,10 @@ func (r *raftFsmStore) Apply(log *raft.Log) interface{} {
 	if err := transaction.Decode(log.Data); err != nil {
 		return err
 	}
+	delay := time.Unix(0, int64(transaction.Timestamp))
+	now := time.Now()
+	defer r.logger.Verbosef("apply transaction time: %s", time.Since(now))
+	r.logger.Verbosef("applying transaction, delayed: %s", time.Since(delay))
 	err := r.db.Update(func(txn *badger.Txn) error {
 		for _, action := range transaction.Actions {
 			switch action.Type {
