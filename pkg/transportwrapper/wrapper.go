@@ -116,7 +116,7 @@ func (wrapper *transportWrapper) ForwardToRpc(conn net.Conn, err error) {
 }
 
 func (wrapper *transportWrapper) closeCallback() {
-	timber.Verbosef("received close callback")
+	wrapper.rpcTransport.logger.Verbosef("received close callback")
 }
 
 func (wrapper *transportWrapper) RaftTransport() transport.Transport {

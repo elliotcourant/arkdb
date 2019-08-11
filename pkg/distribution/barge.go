@@ -4,8 +4,13 @@ import (
 	"fmt"
 	"github.com/dgraph-io/badger"
 	"github.com/elliotcourant/arkdb/pkg/storage"
+	"github.com/hashicorp/raft"
 	"sync"
 	"time"
+)
+
+var (
+	ErrBargeStopped = fmt.Errorf("barge has been stopped")
 )
 
 type Encoder interface {
@@ -20,15 +25,21 @@ type Barge interface {
 	Start() error
 	WaitForLeader(timeout time.Duration) (string, bool, error)
 	IsLeader() bool
-	Begin() Transaction
+	Begin() (Transaction, error)
+	Stop() error
+	IsStopped() bool
+	NodeID() raft.ServerID
 }
 
-func (r *boat) Begin() Transaction {
+func (r *boat) Begin() (Transaction, error) {
+	if r.IsStopped() {
+		return nil, ErrBargeStopped
+	}
 	return &transaction{
 		txn:           r.db.NewTransaction(true),
 		boat:          r,
 		pendingWrites: map[string][]byte{},
-	}
+	}, nil
 }
 
 type Transaction interface {
@@ -86,6 +97,9 @@ func (t *transaction) Rollback() error {
 }
 
 func (t *transaction) Commit() error {
+	if t.boat.IsStopped() {
+		return ErrBargeStopped
+	}
 	startTime := time.Now()
 	defer t.boat.logger.Verbosef("time to commit: %s", time.Since(startTime))
 	if t.isFinished() {

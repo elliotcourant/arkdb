@@ -11,6 +11,23 @@ import (
 	"time"
 )
 
+func VerifyLeader(t *testing.T, nodes []Barge) {
+	leaderAddr := ""
+	for _, node := range nodes {
+		if node.IsStopped() {
+			continue
+		}
+		addr, _, err := node.WaitForLeader(time.Second * 5)
+		assert.NoError(t, err)
+		if leaderAddr == "" {
+			leaderAddr = addr
+		}
+
+		assert.Equal(t, leaderAddr, addr)
+	}
+	timber.Infof("current leader: %s", leaderAddr)
+}
+
 func TestNewDistributor(t *testing.T) {
 	t.Run("single", func(t *testing.T) {
 		tempDir, cleanup := testutils.NewTempDirectory(t)
@@ -86,8 +103,6 @@ func TestNewDistributor(t *testing.T) {
 			}(node)
 		}
 
-		// time.Sleep(10 * time.Second)
-
 		// Make sure all of the nodes have the same leader
 		leaderAddr := ""
 		for _, node := range nodes {
@@ -151,26 +166,16 @@ func TestNewDistributor(t *testing.T) {
 			}(node)
 		}
 
-		// time.Sleep(10 * time.Second)
-
 		// Make sure all of the nodes have the same leader
-		leaderAddr := ""
-		for _, node := range nodes {
-			addr, _, err := node.WaitForLeader(time.Second * 5)
-			assert.NoError(t, err)
-			if leaderAddr == "" {
-				leaderAddr = addr
-			}
-
-			assert.Equal(t, leaderAddr, addr)
-		}
+		VerifyLeader(t, nodes)
 
 		for i, node := range nodes {
 			if node.IsLeader() {
 				continue
 			}
 
-			tx := node.Begin()
+			tx, err := node.Begin()
+			assert.NoError(t, err)
 
 			table := &storage.Table{
 				TableID:    uint8(i + 1),
@@ -179,18 +184,121 @@ func TestNewDistributor(t *testing.T) {
 				TableName:  fmt.Sprintf("table_%d", i),
 			}
 
-			err := tx.Set(table.Path(), table)
+			err = tx.Set(table.Path(), table)
 			assert.NoError(t, err)
 
 			err = tx.Commit()
 			assert.NoError(t, err)
 
-			tx = node.Begin()
+			tx, err = node.Begin()
+			assert.NoError(t, err)
 
 			tableRead := &storage.Table{}
 			err = tx.Get(table.Path(), tableRead)
 			assert.NoError(t, err)
 			assert.Equal(t, table, tableRead)
 		}
+	})
+
+	t.Run("single shutdown", func(t *testing.T) {
+		tempDir, cleanup := testutils.NewTempDirectory(t)
+
+		ln, err := transport.NewTransport(":")
+		assert.NoError(t, err)
+
+		defer cleanup()
+		d, err := NewDistributor(ln, &Options{
+			Directory:     tempDir,
+			ListenAddress: ln.Addr().String(),
+			Peers:         []string{ln.Addr().String()},
+			Join:          false,
+		}, timber.With(timber.Keys{
+			"test": t.Name(),
+		}))
+		assert.NoError(t, err)
+		assert.NotNil(t, d)
+
+		err = d.Start()
+		assert.NoError(t, err)
+
+		time.Sleep(time.Second * 5)
+
+		err = d.Stop()
+		assert.NoError(t, err)
+
+		tx, err := d.Begin()
+		assert.EqualError(t, err, ErrBargeStopped.Error())
+		assert.Nil(t, tx)
+	})
+
+	t.Run("fail over", func(t *testing.T) {
+		numberOfNodes := 9
+
+		listeners := make([]transport.Transport, numberOfNodes)
+		peers := make([]string, numberOfNodes)
+		for i := range listeners {
+			ln, err := transport.NewTransport(":")
+			assert.NoError(t, err)
+			listeners[i] = ln
+			peers[i] = ln.Addr().String()
+		}
+
+		cleanups := make([]func(), numberOfNodes)
+		nodes := make([]Barge, numberOfNodes)
+
+		for i := 0; i < numberOfNodes; i++ {
+			func() {
+				tempDir, cleanup := testutils.NewTempDirectory(t)
+				cleanups[i] = cleanup
+
+				d, err := NewDistributor(listeners[i], &Options{
+					Directory:     tempDir,
+					ListenAddress: listeners[i].Addr().String(),
+					Peers:         peers,
+					Join:          false,
+				}, timber.With(timber.Keys{
+					"test": t.Name(),
+				}))
+				assert.NoError(t, err)
+				assert.NotNil(t, d)
+
+				nodes[i] = d
+			}()
+		}
+
+		defer func(cleanups []func()) {
+			for _, cleanup := range cleanups {
+				cleanup()
+			}
+		}(cleanups)
+
+		timber.Debugf("created %d node(s), starting now", numberOfNodes)
+
+		for _, node := range nodes {
+			go func(node Barge) {
+				err := node.Start()
+				assert.NoError(t, err)
+			}(node)
+		}
+
+		// Make sure all of the nodes have the same leader
+		VerifyLeader(t, nodes)
+
+		// Kill the leader node to force an election.
+		for _, node := range nodes {
+			if !node.IsLeader() {
+				continue
+			}
+			timber.Warningf("killing leader node [%s]", node.NodeID())
+			err := node.Stop()
+			assert.NoError(t, err)
+			break
+		}
+
+		// Wait a short amount of time for a new leader
+		time.Sleep(5 * time.Second)
+
+		// Make sure that the remaining nodes all have the same leader.
+		VerifyLeader(t, nodes)
 	})
 }

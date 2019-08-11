@@ -21,15 +21,19 @@ func (i *masterServer) runMasterServer() {
 		t := i.ln.NormalTransport()
 		for {
 			conn, err := t.Accept()
-			if err != nil {
+			if err != nil && !i.boat.IsStopped() {
 				i.logger.Errorf("failed to accept connection: %v", err)
 			}
 
-			go func(i *masterServer, conn net.Conn) {
-				if err := i.handleMasterConn(conn); err != nil {
-					i.logger.Errorf("failed to handle connection: %v", err)
-				}
-			}(i, conn)
+			if !i.boat.IsStopped() {
+				go func(i *masterServer, conn net.Conn) {
+					if err := i.handleMasterConn(conn); err != nil {
+						i.logger.Errorf("failed to handle connection: %v", err)
+					}
+				}(i, conn)
+			} else {
+				return
+			}
 		}
 	}(i)
 }

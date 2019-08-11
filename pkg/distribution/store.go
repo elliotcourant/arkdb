@@ -53,6 +53,32 @@ type boat struct {
 	raftSync sync.RWMutex
 	raft     *raft.Raft
 	ln       transportwrapper.TransportWrapper
+
+	closed     bool
+	closedSync sync.RWMutex
+}
+
+func (r *boat) NodeID() raft.ServerID {
+	return r.id
+}
+
+func (r *boat) IsStopped() bool {
+	r.closedSync.RLock()
+	defer r.closedSync.RUnlock()
+	return r.closed
+}
+
+func (r *boat) Stop() error {
+	r.closedSync.Lock()
+	defer r.closedSync.Unlock()
+	r.closed = true
+	ftr := r.raft.Shutdown()
+	if err := ftr.Error(); err != nil {
+		return err
+	}
+	r.ln.Close()
+	r.db.Close()
+	return nil
 }
 
 func NewDistributor(listener net.Listener, options *Options, l timber.Logger) (Barge, error) {
