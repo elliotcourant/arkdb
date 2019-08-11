@@ -5,6 +5,8 @@ import (
 )
 
 type AddColumnPlanner interface {
+	SetCheckExisting(do bool)
+	CheckExisting() bool
 	NamePrefix() []byte
 	SetTableID(id uint8)
 	Path() []byte
@@ -14,7 +16,16 @@ type AddColumnPlanner interface {
 }
 
 type addColumnBase struct {
-	column storage.Column
+	checkExisting bool
+	column        storage.Column
+}
+
+func (i *addColumnBase) SetCheckExisting(do bool) {
+	i.checkExisting = do
+}
+
+func (i *addColumnBase) CheckExisting() bool {
+	return i.checkExisting
 }
 
 func (i *addColumnBase) NamePrefix() []byte {
@@ -39,6 +50,7 @@ func (i *addColumnBase) After() []PlanStep {
 
 func (p *planContext) addColumnPlanner(column storage.Column) AddColumnPlanner {
 	return &addColumnBase{
-		column: column,
+		column:        column,
+		checkExisting: true,
 	}
 }

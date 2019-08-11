@@ -13,7 +13,7 @@ func TestExecute(t *testing.T) {
 	t.Run("create table", func(t *testing.T) {
 		barge, cleanup := bargeutil.NewBarge(t)
 		defer cleanup()
-		nodes, err := parser.Parse("CREATE TABLE test (id BIGINT PRIMARY KEY, name TEXT);")
+		nodes, err := parser.Parse("CREATE TABLE test (id BIGINT PRIMARY KEY, name TEXT); CREATE TABLE thing (account_id BIGINT PRIMARY KEY, name TEXT, test_id BIGINT REFERENCES test (id));")
 		assert.NoError(t, err)
 
 		plan, err := CreatePlan(nodes)
@@ -33,5 +33,8 @@ func TestExecute(t *testing.T) {
 		timber.Debugf("execution time [%s]", time.Since(start))
 		assert.Error(t, err)
 		assert.Nil(t, result)
+
+		err = tx.Commit()
+		assert.NoError(t, err)
 	})
 }

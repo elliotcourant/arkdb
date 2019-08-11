@@ -63,6 +63,7 @@ func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) CreateTableP
 			ColumnName: column.Name.Name.String(),
 			ColumnType: column.Tp.Tp,
 		})
+		columns[i].SetCheckExisting(false)
 	}
 
 	return &createTableBase{
