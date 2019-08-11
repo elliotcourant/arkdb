@@ -9,7 +9,15 @@ import (
 
 func TestParse(t *testing.T) {
 	p := parser.New()
-	stmtNodes, _, err := p.Parse("SELECT 1, true;", "", "")
-	assert.NoError(t, err)
-	assert.NotEmpty(t, stmtNodes)
+	t.Run("select", func(t *testing.T) {
+		stmtNodes, _, err := p.Parse("SELECT 1, true;", "", "")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, stmtNodes)
+	})
+
+	t.Run("create table", func(t *testing.T) {
+		stmtNodes, _, err := p.Parse("CREATE TABLE test (id BIGINT PRIMARY KEY, name TEXT);", "", "")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, stmtNodes)
+	})
 }

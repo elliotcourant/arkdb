@@ -79,14 +79,14 @@ func NewDistributor(listener net.Listener, options *Options, l timber.Logger) (B
 func (r *boat) Start() error {
 	r.runMasterServer()
 	r.runBoatServer()
-	nodeId, newNode, err := r.determineNodeId()
+	nodeId, peerNodes, newNode, err := r.determineNodeId()
 	if err != nil {
 		return err
 	}
 
 	r.nodeId, r.newNode = nodeId, newNode
 
-	r.logger = r.logger.Prefix(fmt.Sprintf("%s", r.options.ListenAddress))
+	r.logger = r.logger.Prefix(fmt.Sprintf("%s", nodeId.RaftID()))
 
 	r.logger.Infof("starting node at address [%s]", r.options.ListenAddress)
 
@@ -107,10 +107,12 @@ func (r *boat) Start() error {
 		SnapshotInterval:   time.Minute * 5,
 		SnapshotThreshold:  512,
 		LeaderLeaseTimeout: time.Millisecond * 500,
-		LocalID:            raft.ServerID(r.options.ListenAddress),
+		LocalID:            nodeId.RaftID(),
 		NotifyCh:           nil,
-		Logger:             logger.NewLogger(r.options.ListenAddress),
+		Logger:             logger.NewLogger(string(nodeId.RaftID())),
 	}
+
+	r.ln.SetNodeID(config.LocalID)
 
 	snapshots, err := raft.NewFileSnapshotStore(r.options.Directory, 8, os.Stderr)
 	if err != nil {
@@ -150,19 +152,8 @@ func (r *boat) Start() error {
 		r.raft.BootstrapCluster(configuration)
 	} else if len(r.options.Peers) > 1 && newNode && !r.options.Join {
 		r.logger.Infof("bootstrapping")
-		servers := make([]raft.Server, len(r.options.Peers))
-		for i, peer := range r.options.Peers {
-			peerAddr, err := network.ResolveAddress(peer)
-			if err != nil {
-				return err
-			}
-			servers[i] = raft.Server{
-				ID:      raft.ServerID(peerAddr),
-				Address: raft.ServerAddress(peerAddr),
-			}
-		}
 		configuration := raft.Configuration{
-			Servers: servers,
+			Servers: peerNodes,
 		}
 		bootstrapResult := r.raft.BootstrapCluster(configuration)
 		if err := bootstrapResult.Error(); err != nil {
@@ -313,7 +304,7 @@ func (r *boat) runBoatServer() {
 	bs.runBoatServer()
 }
 
-func (r *boat) determineNodeId() (id nodeId, newNode bool, err error) {
+func (r *boat) determineNodeId() (id nodeId, servers []raft.Server, newNode bool, err error) {
 	var val []byte
 	if err := r.db.View(func(txn *badger.Txn) error {
 		item, err := txn.Get(storage.GetMyNodeIdPath())
@@ -326,12 +317,12 @@ func (r *boat) determineNodeId() (id nodeId, newNode bool, err error) {
 		_, err = item.ValueCopy(val)
 		return err
 	}); err != nil {
-		return 0, true, err
+		return 0, nil, true, err
 	}
 
 	if len(val) == 8 {
 		id = nodeId(binary.BigEndian.Uint64(val))
-		return id, false, nil
+		return id, nil, false, nil
 	}
 
 	// If we are joining a cluster we should reach out to each one of
@@ -343,30 +334,39 @@ func (r *boat) determineNodeId() (id nodeId, newNode bool, err error) {
 	// are multiple established clusters currently active and we
 	// cannot determine which cluster we should join.
 	if r.options.Join {
-
-	}
-
-	myParsedAddress, err := network.ResolveAddress(r.options.ListenAddress)
-	if err != nil {
-		return 0, true, err
-	}
-	peers := make([]string, len(r.options.Peers))
-	for i, peer := range r.options.Peers {
-		addr, err := network.ResolveAddress(peer)
+		return 0, nil, true, fmt.Errorf("join not yet supported")
+	} else {
+		myParsedAddress, err := network.ResolveAddress(r.options.ListenAddress)
 		if err != nil {
-			return 0, true, err
+			return 0, nil, true, err
 		}
-		peers[i] = addr
+		peers := make([]string, len(r.options.Peers))
+		for i, peer := range r.options.Peers {
+			addr, err := network.ResolveAddress(peer)
+			if err != nil {
+				return 0, nil, true, err
+			}
+			peers[i] = addr
+		}
+		peers = append(peers, myParsedAddress)
+
+		linq.From(peers).Distinct().ToSlice(&peers)
+
+		sort.Strings(peers)
+
+		servers := make([]raft.Server, len(peers))
+		for i, peer := range peers {
+			servers[i] = raft.Server{
+				ID:       raft.ServerID(fmt.Sprintf("%d", i+1)),
+				Address:  raft.ServerAddress(peer),
+				Suffrage: raft.Voter,
+			}
+		}
+
+		id = nodeId(linq.From(peers).IndexOf(func(i interface{}) bool {
+			addr, ok := i.(string)
+			return ok && addr == myParsedAddress
+		}) + 1)
+		return id, servers, true, nil
 	}
-	peers = append(peers, myParsedAddress)
-
-	linq.From(peers).Distinct().ToSlice(&peers)
-
-	sort.Strings(peers)
-
-	id = nodeId(linq.From(peers).IndexOf(func(i interface{}) bool {
-		addr, ok := i.(string)
-		return ok && addr == myParsedAddress
-	}) + 1)
-	return id, true, nil
 }

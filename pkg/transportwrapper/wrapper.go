@@ -17,6 +17,7 @@ type TransportWrapper interface {
 	Port() int
 	Addr() net.Addr
 	Close()
+	SetNodeID(id raft.ServerID)
 }
 
 type accept struct {
@@ -26,6 +27,7 @@ type accept struct {
 type transportWrapperItem struct {
 	listener      transport.Transport
 	acceptChannel chan accept
+	logger        timber.Logger
 
 	closeCallback func()
 }
@@ -40,7 +42,7 @@ func (t *transportWrapperItem) Accept() (net.Conn, error) {
 }
 
 func (t *transportWrapperItem) Close() error {
-	timber.Warningf("closing transport wrapper item")
+	t.logger.Warningf("closing transport wrapper item")
 	// close(t.acceptChannel)
 	t.closeCallback()
 	return t.listener.Close()
@@ -51,7 +53,7 @@ func (t *transportWrapperItem) Addr() net.Addr {
 }
 
 func (t *transportWrapperItem) Dial(address raft.ServerAddress, timeout time.Duration) (net.Conn, error) {
-	timber.Warningf("dialing [%s] via transport wrapper item", address)
+	t.logger.Warningf("dialing [%s] via transport wrapper item", address)
 	return t.listener.Dial(address, timeout)
 }
 
@@ -59,6 +61,11 @@ type transportWrapper struct {
 	transport     transport.Transport
 	raftTransport *transportWrapperItem
 	rpcTransport  *transportWrapperItem
+}
+
+func (wrapper *transportWrapper) SetNodeID(id raft.ServerID) {
+	wrapper.raftTransport.logger = wrapper.raftTransport.logger.Prefix(string(id))
+	wrapper.rpcTransport.logger = wrapper.rpcTransport.logger.Prefix(string(id))
 }
 
 func NewTransportWrapperFromListener(listener net.Listener) TransportWrapper {
@@ -79,9 +86,11 @@ func NewTransportWrapperEx(listener transport.Transport) TransportWrapper {
 		transport: listener,
 		raftTransport: &transportWrapperItem{
 			acceptChannel: make(chan accept, 0),
+			logger:        timber.New(),
 		},
 		rpcTransport: &transportWrapperItem{
 			acceptChannel: make(chan accept, 0),
+			logger:        timber.New(),
 		},
 	}
 

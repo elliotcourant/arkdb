@@ -61,9 +61,6 @@ func (t *transaction) Get(key []byte, value Decoder) error {
 	if err != nil {
 		return err
 	}
-	// if _, err = item.ValueCopy(val); err != nil {
-	// 	return err
-	// }
 	return value.Decode(val)
 }
 
