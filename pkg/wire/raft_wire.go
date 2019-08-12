@@ -183,15 +183,14 @@ func (r *serverWire) Receive() (ClientMessage, error) {
 		msg = &RequestVoteRequest{}
 	case installSnapshotRequest:
 		msg = &InstallSnapshotRequest{}
-
 	case handshakeRequest:
 		msg = &HandshakeRequest{}
-
 	case discoveryRequest:
 		msg = &DiscoveryRequest{}
-
 	case applyTransactionRequest:
 		msg = &ApplyTransactionRequest{}
+	case nextObjectIdRequest:
+		msg = &NextObjectIdRequest{}
 
 	default:
 		return nil, fmt.Errorf("failed to handle client message of with header [%s]", string(r.msgType))
@@ -278,14 +277,14 @@ func (r *clientWire) Receive() (ServerMessage, error) {
 		msg = &InstallSnapshotResponse{}
 	case errorResponse:
 		msg = &ErrorResponse{}
-
 	case handshakeResponse:
 		msg = &HandshakeResponse{}
-
 	case discoveryResponse:
 		msg = &DiscoveryResponse{}
 	case applyTransactionResponse:
 		msg = &ApplyTransactionResponse{}
+	case nextObjectIdResponse:
+		msg = &NextObjectIdResponse{}
 
 	default:
 		return nil, fmt.Errorf("failed to handle server message of with header [%s]", string(r.msgType))

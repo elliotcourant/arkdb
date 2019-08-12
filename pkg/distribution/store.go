@@ -56,6 +56,40 @@ type boat struct {
 
 	closed     bool
 	closedSync sync.RWMutex
+
+	objectSequences     map[string]*ObjectSequence
+	objectSequencesSync sync.Mutex
+}
+
+func (r *boat) NextObjectID(objectPath []byte) (uint8, error) {
+	leaderAddr, amLeader, err := r.waitForAmILeader(leaderWaitTimeout)
+	if err != nil {
+		return 0, fmt.Errorf("could not apply transaction: %v", err)
+	}
+	// If I am not the leader then we need to forward this request to the leader.
+	if !amLeader {
+		r.logger.Verbosef("redirecting object identity request to leader [%s]", leaderAddr)
+		c, err := r.newRpcConnectionTo(leaderAddr)
+		if err != nil {
+			return 0, err
+		}
+		defer c.Close()
+		return c.NextObjectID(objectPath)
+	}
+
+	r.objectSequencesSync.Lock()
+	defer r.objectSequencesSync.Unlock()
+
+	seq, ok := r.objectSequences[string(objectPath)]
+	if !ok {
+		seq, err = r.GetObjectSequence(objectPath, 10)
+		if err != nil {
+			return 0, err
+		}
+		r.objectSequences[string(objectPath)] = seq
+	}
+
+	return seq.Next()
 }
 
 func (r *boat) NodeID() raft.ServerID {
@@ -95,10 +129,11 @@ func NewDistributor(listener net.Listener, options *Options, l timber.Logger) (B
 		return nil, err
 	}
 	return &boat{
-		options: options,
-		db:      db,
-		logger:  l,
-		ln:      ln,
+		options:         options,
+		db:              db,
+		logger:          l,
+		ln:              ln,
+		objectSequences: map[string]*ObjectSequence{},
 	}, nil
 }
 
@@ -247,7 +282,7 @@ func (r *boat) waitForAmILeader(timeout time.Duration) (string, bool, error) {
 	return addr, r.raft.State() == raft.Leader, nil
 }
 
-func (r *boat) apply(tx storage.Transaction) error {
+func (r *boat) apply(tx storage.Transaction, badgerTxn *badger.Txn) error {
 	leaderAddr, amLeader, err := r.waitForAmILeader(leaderWaitTimeout)
 	if err != nil {
 		return fmt.Errorf("could not apply transaction: %v", err)
@@ -264,33 +299,28 @@ func (r *boat) apply(tx storage.Transaction) error {
 		if err != nil {
 			return err
 		}
-		r.logger.Verbosef("remote apply was successful, applying locally")
-		return r.db.Update(func(txn *badger.Txn) error {
+
+		if badgerTxn != nil {
+			r.logger.Verbosef("apply was successful, applying locally")
 			for _, action := range tx.Actions {
 				switch action.Type {
 				case storage.ActionTypeSet:
-					if err := txn.Set(action.Key, action.Value); err != nil {
+					if err := badgerTxn.Set(action.Key, action.Value); err != nil {
 						return err
 					}
 				case storage.ActionTypeDelete:
-					if err := txn.Delete(action.Key); err != nil {
+					if err := badgerTxn.Delete(action.Key); err != nil {
 						return err
 					}
 				default:
 					return fmt.Errorf("invalid action type [%d]", action.Type)
 				}
 			}
-			return nil
-		})
+			return badgerTxn.Commit()
+		}
 	}
-
 	applyFuture := r.raft.Apply(tx.Encode(), applyTimeout)
-	if err := applyFuture.Error(); err != nil {
-		return err
-	}
-	response := applyFuture.Response()
-	r.logger.Verbosef("apply response: (%T) %v", response, response)
-	return nil
+	return applyFuture.Error()
 }
 
 func (r *boat) stableStore() raft.StableStore {

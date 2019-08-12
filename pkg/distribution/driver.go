@@ -10,6 +10,7 @@ import (
 
 type rpcDriver interface {
 	ApplyTransaction(tx storage.Transaction) error
+	NextObjectID(objectPath []byte) (uint8, error)
 	Close() error
 }
 
@@ -18,6 +19,30 @@ type rpcDriverBase struct {
 	logger timber.Logger
 	w      wire.RpcClientWire
 	c      net.Conn
+}
+
+func (r *rpcDriverBase) NextObjectID(objectPath []byte) (uint8, error) {
+	if err := r.w.Send(&wire.NextObjectIdRequest{
+		ObjectPath: objectPath,
+	}); err != nil {
+		return 0, err
+	}
+
+	for {
+		receivedMsg, err := r.w.Receive()
+		if err != nil {
+			return 0, err
+		}
+
+		switch msg := receivedMsg.(type) {
+		case *wire.NextObjectIdResponse:
+			return msg.Identity, nil
+		case *wire.ErrorResponse:
+			return 0, msg.Error
+		default:
+			return 0, fmt.Errorf("expected apply transaction response, received [%T]", msg)
+		}
+	}
 }
 
 func (r *rpcDriverBase) ApplyTransaction(tx storage.Transaction) error {

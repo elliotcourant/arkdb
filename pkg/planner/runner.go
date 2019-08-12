@@ -31,9 +31,9 @@ func doesExist(tx distribution.Transaction, prefix []byte) (exists bool, err err
 
 func executeItem(tx distribution.Transaction, step PlanStep) (interface{}, error) {
 	switch item := step.(type) {
-	case AddColumnPlanner:
-		if item.CheckExisting() {
-			exists, err := doesExist(tx, item.NamePrefix())
+	case addColumnPlan:
+		if item.checkExisting {
+			exists, err := doesExist(tx, item.column.Prefix())
 			if err != nil {
 				return nil, err
 			}
@@ -41,11 +41,11 @@ func executeItem(tx distribution.Transaction, step PlanStep) (interface{}, error
 				return nil, fmt.Errorf("a column with matching name already exists")
 			}
 		}
-		if err := tx.Set(item.Path(), item); err != nil {
+		if err := tx.Set(item.column.Path(), item.column); err != nil {
 			return nil, err
 		}
-	case CreateTablePlanner:
-		exists, err := doesExist(tx, item.NamePrefix())
+	case createTablePlan:
+		exists, err := doesExist(tx, item.table.Prefix())
 		if err != nil {
 			return nil, err
 		}
@@ -55,14 +55,14 @@ func executeItem(tx distribution.Transaction, step PlanStep) (interface{}, error
 
 		tableId := uint8(3)
 
-		item.SetObjectID(tableId)
+		item.table.TableID = tableId
 
-		if err = tx.Set(item.Path(), item); err != nil {
+		if err = tx.Set(item.table.Path(), item.table); err != nil {
 			return nil, err
 		}
 
-		for _, column := range item.Columns() {
-			column.SetTableID(tableId)
+		for i, column := range item.columns {
+			item.columns[i].column.TableID = tableId
 			if _, err := executeItem(tx, column); err != nil {
 				return nil, err
 			}

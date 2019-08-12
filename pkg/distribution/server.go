@@ -110,7 +110,7 @@ func (i *boatServer) handleConn(conn net.Conn) error {
 		switch msg := receivedMsg.(type) {
 		case *wire.ApplyTransactionRequest:
 			i.logger.Verbosef("received apply transaction request from [%s]", msg.NodeID)
-			e := i.boat.apply(*msg.Transaction)
+			e := i.boat.apply(*msg.Transaction, nil)
 			if e != nil {
 				if err := r.Send(&wire.ErrorResponse{
 					Error: e,
@@ -130,6 +130,21 @@ func (i *boatServer) handleConn(conn net.Conn) error {
 			}
 			if err := r.Send(response); err != nil {
 				return err
+			}
+		case *wire.NextObjectIdRequest:
+			val, e := i.boat.NextObjectID(msg.ObjectPath)
+			if e != nil {
+				if err := r.Send(&wire.ErrorResponse{
+					Error: e,
+				}); err != nil {
+					return err
+				}
+			} else {
+				if err := r.Send(&wire.NextObjectIdResponse{
+					Identity: val,
+				}); err != nil {
+					return err
+				}
 			}
 		default:
 			e := fmt.Errorf("invalid rpc message received [%d]", msg)

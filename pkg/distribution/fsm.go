@@ -24,7 +24,7 @@ func (r *raftFsmStore) Apply(log *raft.Log) interface{} {
 	now := time.Now()
 	defer r.logger.Verbosef("apply transaction time: %s", time.Since(now))
 	r.logger.Verbosef("applying transaction, delayed: %s", time.Since(delay))
-	err := r.db.Update(func(txn *badger.Txn) error {
+	return r.db.Update(func(txn *badger.Txn) error {
 		for _, action := range transaction.Actions {
 			switch action.Type {
 			case storage.ActionTypeSet:
@@ -39,7 +39,6 @@ func (r *raftFsmStore) Apply(log *raft.Log) interface{} {
 		}
 		return nil
 	})
-	return err
 }
 
 func (r *raftFsmStore) Restore(rc io.ReadCloser) error {

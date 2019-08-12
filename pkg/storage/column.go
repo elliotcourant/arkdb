@@ -17,6 +17,10 @@ type Column struct {
 	ColumnType uint8
 }
 
+func (i Column) Encode() []byte {
+	return make([]byte, 0)
+}
+
 func (i Column) Size() int {
 	return columnMinimumSize + len(i.ColumnName)
 }

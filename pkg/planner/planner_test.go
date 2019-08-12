@@ -15,4 +15,13 @@ func TestCreatePlan(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, plan)
 	})
+
+	t.Run("insert", func(t *testing.T) {
+		nodes, err := parser.Parse("INSERT INTO test (id, name) VALUES(1234, 'elliot');")
+		assert.NoError(t, err)
+
+		plan, err := CreatePlan(nodes)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, plan)
+	})
 }

@@ -5,47 +5,12 @@ import (
 	"github.com/pingcap/parser/ast"
 )
 
-type CreateTablePlanner interface {
-	NamePrefix() []byte
-	SetObjectID(id uint8)
-	Path() []byte
-	Encode() []byte
-
-	Columns() []AddColumnPlanner
-
-	After() []PlanStep
-}
-
-type createTableBase struct {
+type createTablePlan struct {
 	table   storage.Table
-	columns []AddColumnPlanner
+	columns []addColumnPlan
 }
 
-func (i *createTableBase) Columns() []AddColumnPlanner {
-	return i.columns
-}
-
-func (i *createTableBase) After() []PlanStep {
-	return nil
-}
-
-func (i *createTableBase) NamePrefix() []byte {
-	return i.table.Prefix()
-}
-
-func (i *createTableBase) SetObjectID(id uint8) {
-	i.table.TableID = id
-}
-
-func (i *createTableBase) Path() []byte {
-	return i.table.Path()
-}
-
-func (i *createTableBase) Encode() []byte {
-	return i.table.Encode()
-}
-
-func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) CreateTablePlanner {
+func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) createTablePlan {
 	table := storage.Table{
 		TableID:    0,
 		DatabaseID: 1,
@@ -53,7 +18,7 @@ func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) CreateTableP
 		TableName:  stmt.Table.Name.String(),
 	}
 
-	columns := make([]AddColumnPlanner, len(stmt.Cols))
+	columns := make([]addColumnPlan, len(stmt.Cols))
 	for i, column := range stmt.Cols {
 		columns[i] = p.addColumnPlanner(storage.Column{
 			ColumnID:   uint8(i + 1),
@@ -63,10 +28,10 @@ func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) CreateTableP
 			ColumnName: column.Name.Name.String(),
 			ColumnType: column.Tp.Tp,
 		})
-		columns[i].SetCheckExisting(false)
+		columns[i].checkExisting = false
 	}
 
-	return &createTableBase{
+	return createTablePlan{
 		table:   table,
 		columns: columns,
 	}

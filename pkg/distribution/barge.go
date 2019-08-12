@@ -29,6 +29,7 @@ type Barge interface {
 	Stop() error
 	IsStopped() bool
 	NodeID() raft.ServerID
+	NextObjectID(objectPath []byte) (uint8, error)
 }
 
 func (r *boat) Begin() (Transaction, error) {
@@ -168,7 +169,6 @@ func (t *transaction) Commit() error {
 	}
 	defer t.finishTransaction()
 	if t.getNumberOfPendingWrites() == 0 {
-		t.txn.Discard()
 		return nil
 	}
 	rtx := storage.Transaction{
@@ -189,7 +189,7 @@ func (t *transaction) Commit() error {
 			Value: v,
 		})
 	}
-	return t.boat.apply(rtx)
+	return t.boat.apply(rtx, t.txn)
 }
 
 func (t *transaction) addPendingWrite(key []byte, value []byte) {
@@ -208,6 +208,7 @@ func (t *transaction) finishTransaction() {
 	t.closedSync.Lock()
 	defer t.closedSync.Unlock()
 	t.closed = true
+	t.txn.Discard()
 }
 
 func (t *transaction) isFinished() bool {

@@ -18,6 +18,7 @@ const (
 	discoveryRequest        clientMessageType = 'd'
 	handshakeRequest        clientMessageType = 'h'
 	applyTransactionRequest clientMessageType = 't'
+	nextObjectIdRequest     clientMessageType = 'n'
 )
 
 const (
@@ -27,6 +28,7 @@ const (
 	discoveryResponse        serverMessageType = 'D'
 	handshakeResponse        serverMessageType = 'H'
 	applyTransactionResponse serverMessageType = 'T'
+	nextObjectIdResponse     serverMessageType = 'N'
 
 	errorResponse serverMessageType = 'E'
 )
@@ -113,6 +115,8 @@ func writeWireMessage(msg Message) []byte {
 		buf.AppendByte(handshakeRequest)
 	case *ApplyTransactionRequest:
 		buf.AppendByte(applyTransactionRequest)
+	case *NextObjectIdRequest:
+		buf.AppendByte(nextObjectIdRequest)
 
 	case *AppendEntriesResponse:
 		buf.AppendByte(appendEntriesResponse)
@@ -126,6 +130,8 @@ func writeWireMessage(msg Message) []byte {
 		buf.AppendByte(handshakeResponse)
 	case *ApplyTransactionResponse:
 		buf.AppendByte(applyTransactionResponse)
+	case *NextObjectIdResponse:
+		buf.AppendByte(nextObjectIdResponse)
 
 	case *ErrorResponse:
 		buf.AppendByte(errorResponse)

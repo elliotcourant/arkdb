@@ -14,7 +14,6 @@ type Plan struct {
 }
 
 type PlanStep interface {
-	After() []PlanStep
 }
 
 func CreatePlan(nodes []ast.StmtNode) (Plan, error) {
@@ -27,6 +26,8 @@ func CreatePlan(nodes []ast.StmtNode) (Plan, error) {
 		switch n := node.(type) {
 		case *ast.CreateTableStmt:
 			ptx.Plan.Steps[i] = ptx.createTablePlanner(n)
+		case *ast.InsertStmt:
+
 		default:
 			return ptx.Plan, fmt.Errorf("cannot create plan for stmt node type [%T]", n)
 		}
