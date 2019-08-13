@@ -5,3 +5,6 @@ generated:
 
 test:
 	./coverage.sh
+
+strings:
+	stringer -type Type -output pkg/types/types.string.go pkg/types/types.go

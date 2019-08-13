@@ -1,6 +1,7 @@
 package planner
 
 import (
+	"fmt"
 	"github.com/elliotcourant/arkdb/internal/bargeutil"
 	"github.com/elliotcourant/arkdb/pkg/distribution"
 	"github.com/elliotcourant/arkdb/pkg/parser"
@@ -57,7 +58,9 @@ func TestExecute(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
 
-		Exec(t, tx, "INSERT INTO test (id, name) VALUES (1, 'elliot');")
+		for i := 0; i < 100; i++ {
+			Exec(t, tx, fmt.Sprintf("INSERT INTO test (id, name) VALUES (%d, 'elliot');", i+1))
+		}
 
 		err = tx.Commit()
 		assert.NoError(t, err)

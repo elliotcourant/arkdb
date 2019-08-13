@@ -3,6 +3,7 @@ package planner
 import (
 	"fmt"
 	"github.com/elliotcourant/arkdb/pkg/storage"
+	"github.com/elliotcourant/arkdb/pkg/types"
 	"github.com/pingcap/parser/ast"
 )
 
@@ -27,7 +28,7 @@ func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) createTableP
 			SchemaID:   1,
 			TableID:    0,
 			ColumnName: column.Name.Name.String(),
-			ColumnType: column.Tp.Tp,
+			ColumnType: types.Type(column.Tp.Tp),
 			PrimaryKey: i == 0,
 		})
 		columns[i].checkExisting = false

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/ahmetb/go-linq/v3"
 	"github.com/elliotcourant/arkdb/pkg/storage"
+	"github.com/elliotcourant/arkdb/pkg/types"
 	"github.com/pingcap/parser/ast"
 )
 
@@ -78,7 +79,7 @@ func (e *executeContext) insert(plan insertPlanner) error {
 
 	for k, row := range plan.list {
 		primaryKey := primaryKeys[k]
-		for c, _ := range row {
+		for c, val := range row {
 			col := cols[c]
 			datum := storage.Datum{
 				PrimaryKeyID: primaryKey,
@@ -86,6 +87,11 @@ func (e *executeContext) insert(plan insertPlanner) error {
 				TableID:      col.TableID,
 				ColumnID:     col.ColumnID,
 			}
+			v, err := types.Encode(col.ColumnType, val)
+			if err != nil {
+				return err
+			}
+			datum.Value = v
 			e.SetItem(datum)
 		}
 	}
