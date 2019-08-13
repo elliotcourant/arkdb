@@ -27,7 +27,7 @@ TryAgain:
 		} else if leaderAddr != addr {
 			if retries < maxRetry {
 				retries++
-				time.Sleep(1 * time.Second)
+				time.Sleep(5 * time.Second)
 				goto TryAgain
 			}
 		}
