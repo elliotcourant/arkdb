@@ -1,6 +1,7 @@
 package planner
 
 import (
+	"fmt"
 	"github.com/elliotcourant/arkdb/pkg/storage"
 	"github.com/pingcap/parser/ast"
 )
@@ -21,12 +22,13 @@ func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) createTableP
 	columns := make([]addColumnPlan, len(stmt.Cols))
 	for i, column := range stmt.Cols {
 		columns[i] = p.addColumnPlanner(storage.Column{
-			ColumnID:   uint8(i + 1),
+			ColumnID:   0,
 			DatabaseID: 1,
 			SchemaID:   1,
 			TableID:    0,
 			ColumnName: column.Name.Name.String(),
 			ColumnType: column.Tp.Tp,
+			PrimaryKey: i == 0,
 		})
 		columns[i].checkExisting = false
 	}
@@ -35,4 +37,31 @@ func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) createTableP
 		table:   table,
 		columns: columns,
 	}
+}
+
+func (e *executeContext) createTable(plan createTablePlan) error {
+	_, exists, err := e.getTable(plan.table.DatabaseID, plan.table.SchemaID, plan.table.TableName)
+	if err != nil {
+		return err
+	}
+	if exists {
+		return fmt.Errorf("table with name [%s] already exists", plan.table.TableName)
+	}
+
+	tableId, err := e.tx.NextObjectID(plan.table.ObjectIdPrefix())
+	if err != nil {
+		return err
+	}
+
+	plan.table.TableID = tableId
+
+	e.SetItem(plan.table)
+
+	for _, column := range plan.columns {
+		column.column.TableID = tableId
+		if err := e.executeItem(column); err != nil {
+			return err
+		}
+	}
+	return nil
 }

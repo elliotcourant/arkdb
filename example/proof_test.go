@@ -72,7 +72,11 @@ func TestBadgerScenario(t *testing.T) {
 
 	_ = tx.Commit()
 
-	tableSearch := storage.TablesByNamePrefix(1, 1, "accounts_48")
+	tableSearch := storage.Table{
+		DatabaseID: 1,
+		SchemaID:   1,
+		TableName:  "accounts_48",
+	}.Prefix()
 	fmt.Println("performing search on path:")
 	fmt.Println(hex.Dump(tableSearch))
 	_ = db.View(func(txn *badger.Txn) error {

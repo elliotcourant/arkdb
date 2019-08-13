@@ -93,8 +93,12 @@ func (i *iteratorBase) Rewind() {
 type Transaction interface {
 	Get(key []byte, value Decoder) error
 	Set(key []byte, value Encoder) error
+	SetRaw(key []byte, value []byte) error
+	Delete(key []byte) error
 
-	GetKeyIterator(prefix []byte, reverse bool) Iterator
+	GetKeyIterator(prefix []byte, keyOnly bool, reverse bool) Iterator
+
+	NextObjectID(objectPath []byte) (uint8, error)
 
 	Rollback() error
 	Commit() error
@@ -109,9 +113,17 @@ type transaction struct {
 	pendingWritesSync sync.RWMutex
 }
 
-func (t *transaction) GetKeyIterator(prefix []byte, reverse bool) Iterator {
+func (t *transaction) Delete(key []byte) error {
+	return t.SetRaw(key, nil)
+}
+
+func (t *transaction) NextObjectID(objectPath []byte) (uint8, error) {
+	return t.boat.NextObjectID(objectPath)
+}
+
+func (t *transaction) GetKeyIterator(prefix []byte, keyOnly bool, reverse bool) Iterator {
 	itr := t.txn.NewIterator(badger.IteratorOptions{
-		PrefetchValues: false,
+		PrefetchValues: !keyOnly,
 		Reverse:        reverse,
 		Prefix:         prefix,
 	})
@@ -138,12 +150,21 @@ func (t *transaction) Get(key []byte, value Decoder) error {
 }
 
 func (t *transaction) Set(key []byte, value Encoder) error {
+	return t.SetRaw(key, value.Encode())
+}
+
+func (t *transaction) SetRaw(key, val []byte) error {
 	if t.isFinished() {
 		return fmt.Errorf("transaction closed")
 	}
-	val := value.Encode()
-	if err := t.txn.Set(key, val); err != nil {
-		return err
+	if val == nil {
+		if err := t.txn.Delete(key); err != nil {
+			return err
+		}
+	} else {
+		if err := t.txn.Set(key, val); err != nil {
+			return err
+		}
 	}
 	t.addPendingWrite(key, val)
 	return nil
