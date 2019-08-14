@@ -6,7 +6,7 @@ import (
 )
 
 var (
-	columnMinimumSize = 7
+	columnMinimumSize = 6
 )
 
 type Column struct {
@@ -54,7 +54,9 @@ func (i Column) Prefix() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Column)
 	buf.AppendUint8(i.TableID)
-	buf.AppendString(i.ColumnName)
+	if len(i.ColumnName) > 0 {
+		buf.AppendString(i.ColumnName)
+	}
 	return buf.Bytes()
 }
 
@@ -63,6 +65,5 @@ func (i Column) Path() []byte {
 	buf.AppendByte(MetaPrefix_Column)
 	buf.AppendUint8(i.TableID)
 	buf.AppendString(i.ColumnName)
-	buf.AppendUint8(uint8(i.ColumnType))
 	return buf.Bytes()
 }

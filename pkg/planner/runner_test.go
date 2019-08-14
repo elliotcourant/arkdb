@@ -21,7 +21,7 @@ func Exec(t *testing.T, tx distribution.Transaction, query string) {
 	assert.NoError(t, err)
 	assert.NotEmpty(t, plan)
 
-	result, err := Execute(tx, plan)
+	result, err := newExecuteContext(tx, plan).Execute()
 	assert.NoError(t, err)
 	assert.NotNil(t, result)
 }
@@ -39,7 +39,7 @@ func Query(tx distribution.Transaction, query string) Results {
 		panic(err)
 	}
 
-	result, err := Execute(tx, plan)
+	result, err := newExecuteContext(tx, plan).Execute()
 	if err != nil {
 		panic(err)
 	}
@@ -84,5 +84,41 @@ func TestExecute(t *testing.T) {
 
 		err = tx.Commit()
 		assert.NoError(t, err)
+	})
+}
+
+func TestExecuteContext_GetColumnsEx(t *testing.T) {
+	t.Run("get all columns", func(t *testing.T) {
+		barge, cleanup := bargeutil.NewBarge(t)
+		defer cleanup()
+
+		tx, err := barge.Begin()
+		assert.NoError(t, err)
+		assert.NotNil(t, tx)
+
+		nodes, err := parser.Parse("CREATE TABLE test (id BIGINT PRIMARY KEY, name TEXT);")
+		if err != nil {
+			panic(err)
+		}
+
+		plan, err := CreatePlan(nodes)
+		if err != nil {
+			panic(err)
+		}
+
+		e := newExecuteContext(tx, plan)
+
+		_, err = e.Execute()
+		assert.NoError(t, err)
+
+		columns, err := e.getColumnsEx(1, "")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, columns)
+		assert.Len(t, columns, 2)
+
+		columns, err = e.getColumnsEx(1, "name")
+		assert.NoError(t, err)
+		assert.NotEmpty(t, columns)
+		assert.Len(t, columns, 1)
 	})
 }

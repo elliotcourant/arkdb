@@ -20,22 +20,27 @@ type executeContext struct {
 	tx            distribution.Transaction
 	pendingWrites map[string][]byte
 	results       *results
+	plan          Plan
 
 	// table -> column index -> primary key -> value
 	stmtCache map[string][]map[uint64][]byte
 }
 
-func Execute(tx distribution.Transaction, plan Plan) (Results, error) {
-	e := &executeContext{
-		start:         time.Now(),
+func newExecuteContext(tx distribution.Transaction, plan Plan) *executeContext {
+	return &executeContext{
 		tx:            tx,
 		pendingWrites: map[string][]byte{},
+		plan:          plan,
 		results: &results{
 			sets: make([]*set, len(plan.Steps)),
 		},
 	}
+}
+
+func (e *executeContext) Execute() (Results, error) {
+	e.start = time.Now()
 	defer timber.Tracef("query execution took: %s", time.Since(e.start))
-	for i, step := range plan.Steps {
+	for i, step := range e.plan.Steps {
 		e.stmtCache = map[string][]map[uint64][]byte{}
 		e.results.sets[i] = &set{}
 		err := e.executeItem(step, e.results.sets[i])
@@ -74,6 +79,7 @@ func (e *executeContext) commitStatement() error {
 			}
 		}
 	}
+	e.pendingWrites = map[string][]byte{}
 	return nil
 }
 
@@ -99,6 +105,46 @@ func (e *executeContext) getTable(tableName string) (*storage.Table, bool, error
 		return nil, false, err
 	}
 	return tbl, tbl.TableID > 0, nil
+}
+
+func (e *executeContext) getColumnsEx(tableId uint8, columnNames ...string) (map[string]storage.Column, error) {
+	start := time.Now()
+	defer timber.Tracef("time to get columns: %s", time.Since(start))
+	col := &storage.Column{
+		TableID: tableId,
+	}
+	sort.Strings(columnNames)
+	columns := map[string]storage.Column{}
+	err := func(tx distribution.Transaction, prefix []byte) error {
+		itr := tx.GetKeyIterator(prefix, false, false)
+		defer itr.Close()
+		for _, columnName := range columnNames {
+			col.ColumnName = columnName
+			colPrefix := col.Prefix()
+			if len(columnName) > 0 {
+				columns[columnName] = storage.Column{}
+			}
+			if err := func() error {
+				for itr.Seek(colPrefix); itr.ValidForPrefix(colPrefix); itr.Next() {
+					if err := itr.Item().Value(func(val []byte) error {
+						err := col.Decode(val)
+						columns[col.ColumnName] = *col
+						return err
+					}); err != nil {
+						return err
+					}
+					if len(columnName) > 0 {
+						return nil
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(e.tx, col.ObjectIdPrefix())
+	return columns, err
 }
 
 func (e *executeContext) getColumns(tableId uint8, columnNames ...string) ([]storage.Column, error) {

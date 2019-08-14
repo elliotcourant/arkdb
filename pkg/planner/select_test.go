@@ -24,7 +24,7 @@ func TestSelect(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotEmpty(t, plan)
 
-		result, err := Execute(tx, plan)
+		result, err := newExecuteContext(tx, plan).Execute()
 		assert.NoError(t, err)
 		assert.NotNil(t, result)
 
@@ -42,7 +42,7 @@ func TestSelect(t *testing.T) {
 		Query(tx, `CREATE TABLE foo (id BIGINT PRIMARY KEY, name TEXT);`)
 		Query(tx, `INSERT INTO foo (id, name) VALUES(1, 'elliot'), (2, 'bob'), (3, 'rickster');`)
 
-		result := Query(tx, `SELECT * FROM foo`)
+		result := Query(tx, `SELECT * FROM foo;`)
 		fmt.Println(result.String())
 	})
 }
