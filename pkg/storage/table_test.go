@@ -10,10 +10,8 @@ import (
 func TestTable_Path(t *testing.T) {
 	t.Run("simple", func(t *testing.T) {
 		item := &Table{
-			TableID:    34,
-			SchemaID:   23,
-			DatabaseID: 12,
-			TableName:  "accounts",
+			TableID:   34,
+			TableName: "accounts",
 		}
 		path := item.Path()
 		assert.NotEmpty(t, path)

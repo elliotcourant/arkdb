@@ -18,22 +18,35 @@ type executeContext struct {
 	start         time.Time
 	tx            distribution.Transaction
 	pendingWrites map[string][]byte
+	results       *results
+
+	// table -> column index -> primary key -> value
+	stmtCache map[string][]map[uint64][]byte
 }
 
-func Execute(tx distribution.Transaction, plan Plan) (interface{}, error) {
+func Execute(tx distribution.Transaction, plan Plan) (Results, error) {
 	e := &executeContext{
 		start:         time.Now(),
 		tx:            tx,
 		pendingWrites: map[string][]byte{},
+		results: &results{
+			sets: make([]*set, len(plan.Steps)),
+		},
 	}
 	defer timber.Tracef("query execution took: %s", time.Since(e.start))
-	for _, step := range plan.Steps {
-		err := e.executeItem(step)
+	for i, step := range plan.Steps {
+		e.stmtCache = map[string][]map[uint64][]byte{}
+		e.results.sets[i] = &set{}
+		err := e.executeItem(step, e.results.sets[i])
+		if err != nil {
+			return nil, err
+		}
+		err = e.commitStatement()
 		if err != nil {
 			return nil, err
 		}
 	}
-	return nil, e.commit()
+	return e.results, nil
 }
 
 func (e *executeContext) SetItem(item setItem) {
@@ -48,7 +61,7 @@ func (e *executeContext) Delete(key []byte) {
 	e.pendingWrites[string(key)] = nil
 }
 
-func (e *executeContext) commit() error {
+func (e *executeContext) commitStatement() error {
 	for k, v := range e.pendingWrites {
 		if v == nil {
 			if err := e.tx.Delete([]byte(k)); err != nil {
@@ -76,11 +89,9 @@ func (e *executeContext) doesExist(prefix []byte) (exists bool, err error) {
 	return exists, err
 }
 
-func (e *executeContext) getTable(databaseId, schemaId uint8, tableName string) (*storage.Table, bool, error) {
+func (e *executeContext) getTable(tableName string) (*storage.Table, bool, error) {
 	tbl := &storage.Table{
-		DatabaseID: databaseId,
-		SchemaID:   schemaId,
-		TableName:  tableName,
+		TableName: tableName,
 	}
 	var exists bool
 	table := &storage.Table{}
@@ -98,11 +109,9 @@ func (e *executeContext) getTable(databaseId, schemaId uint8, tableName string) 
 	return table, exists, err
 }
 
-func (e *executeContext) getColumns(databaseId, schemaId, tableId uint8, columnNames ...string) ([]storage.Column, error) {
+func (e *executeContext) getColumns(tableId uint8, columnNames ...string) ([]storage.Column, error) {
 	col := &storage.Column{
-		DatabaseID: databaseId,
-		SchemaID:   schemaId,
-		TableID:    tableId,
+		TableID: tableId,
 	}
 	sort.Strings(columnNames)
 	columns := make([]storage.Column, len(columnNames))
@@ -130,14 +139,16 @@ func (e *executeContext) getColumns(databaseId, schemaId, tableId uint8, columnN
 	return columns, err
 }
 
-func (e *executeContext) executeItem(step PlanStep) error {
+func (e *executeContext) executeItem(step PlanStep, s *set) error {
 	switch item := step.(type) {
 	case addColumnPlan:
-		return e.addColumn(item)
+		return e.runAddColumn(item)
 	case createTablePlan:
-		return e.createTable(item)
+		return e.runCreateTable(item, s)
 	case insertPlanner:
-		return e.insert(item)
+		return e.runInsert(item)
+	case selectPlanner:
+		return e.runSelect(item, s)
 	default:
 		return fmt.Errorf("cannot execute plan for [%T]", item)
 	}

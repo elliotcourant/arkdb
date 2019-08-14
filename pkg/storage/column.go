@@ -6,13 +6,11 @@ import (
 )
 
 var (
-	columnMinimumSize = 9
+	columnMinimumSize = 7
 )
 
 type Column struct {
 	ColumnID   uint8
-	DatabaseID uint8
-	SchemaID   uint8
 	TableID    uint8
 	ColumnName string
 	ColumnType types.Type
@@ -23,8 +21,6 @@ type Column struct {
 func (i Column) Encode() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendUint8(i.ColumnID)
-	buf.AppendUint8(i.DatabaseID)
-	buf.AppendUint8(i.SchemaID)
 	buf.AppendUint8(i.TableID)
 	buf.AppendString(i.ColumnName)
 	buf.AppendUint8(uint8(i.ColumnType))
@@ -36,8 +32,6 @@ func (i *Column) Decode(src []byte) error {
 	*i = Column{}
 	buf := buffers.NewBytesReader(src)
 	i.ColumnID = buf.NextUint8()
-	i.DatabaseID = buf.NextUint8()
-	i.SchemaID = buf.NextUint8()
 	i.TableID = buf.NextUint8()
 	i.ColumnName = buf.NextString()
 	i.ColumnType = types.Type(buf.NextUint8())
@@ -52,8 +46,6 @@ func (i Column) Size() int {
 func (i Column) ObjectIdPrefix() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Column)
-	buf.AppendUint8(i.DatabaseID)
-	buf.AppendUint8(i.SchemaID)
 	buf.AppendUint8(i.TableID)
 	return buf.Bytes()
 }
@@ -61,8 +53,6 @@ func (i Column) ObjectIdPrefix() []byte {
 func (i Column) Prefix() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Column)
-	buf.AppendUint8(i.DatabaseID)
-	buf.AppendUint8(i.SchemaID)
 	buf.AppendUint8(i.TableID)
 	buf.AppendString(i.ColumnName)
 	return buf.Bytes()
@@ -71,8 +61,6 @@ func (i Column) Prefix() []byte {
 func (i Column) Path() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Column)
-	buf.AppendUint8(i.DatabaseID)
-	buf.AppendUint8(i.SchemaID)
 	buf.AppendUint8(i.TableID)
 	buf.AppendString(i.ColumnName)
 	buf.AppendUint8(uint8(i.ColumnType))

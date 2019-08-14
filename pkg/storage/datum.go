@@ -6,7 +6,6 @@ import (
 
 type Datum struct {
 	PrimaryKeyID uint64
-	SchemaID     uint8
 	TableID      uint8
 	ColumnID     uint8
 
@@ -20,7 +19,6 @@ func (i Datum) Encode() []byte {
 func (i Datum) Path() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Datum)
-	buf.AppendUint8(i.SchemaID)
 	buf.AppendUint8(i.TableID)
 	buf.AppendUint8(i.ColumnID)
 	buf.AppendUint64(i.PrimaryKeyID)

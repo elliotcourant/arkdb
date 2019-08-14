@@ -19,10 +19,7 @@ func (p *planContext) insertPlanner(stmt *ast.InsertStmt) insertPlanner {
 	plan := insertPlanner{
 		columnNames: make([]string, len(stmt.Columns)),
 		list:        make([][]interface{}, len(stmt.Lists)),
-		table: storage.Table{
-			DatabaseID: 1,
-			SchemaID:   1,
-		},
+		table:       storage.Table{},
 	}
 
 	switch table := stmt.Table.TableRefs.Left.(type) {
@@ -44,8 +41,8 @@ func (p *planContext) insertPlanner(stmt *ast.InsertStmt) insertPlanner {
 	return plan
 }
 
-func (e *executeContext) insert(plan insertPlanner) error {
-	table, tableExists, err := e.getTable(plan.table.DatabaseID, plan.table.SchemaID, plan.table.TableName)
+func (e *executeContext) runInsert(plan insertPlanner) error {
+	table, tableExists, err := e.getTable(plan.table.TableName)
 	if err != nil {
 		return err
 	}
@@ -53,7 +50,7 @@ func (e *executeContext) insert(plan insertPlanner) error {
 		return fmt.Errorf("table [%s] does not exist", plan.table.TableName)
 	}
 
-	cols, err := e.getColumns(table.DatabaseID, table.SchemaID, table.TableID, plan.columnNames...)
+	cols, err := e.getColumns(table.TableID, plan.columnNames...)
 	if err != nil {
 		return err
 	}
@@ -66,7 +63,7 @@ func (e *executeContext) insert(plan insertPlanner) error {
 	primaryKeys := make([]uint64, len(plan.list))
 	switch primaryKeyIndex {
 	case -1:
-		return fmt.Errorf("cannot insert without primary key")
+		return fmt.Errorf("cannot runInsert without primary key")
 	default:
 		for k, row := range plan.list {
 			cell := row[primaryKeyIndex]
@@ -83,7 +80,6 @@ func (e *executeContext) insert(plan insertPlanner) error {
 			col := cols[c]
 			datum := storage.Datum{
 				PrimaryKeyID: primaryKey,
-				SchemaID:     col.SchemaID,
 				TableID:      col.TableID,
 				ColumnID:     col.ColumnID,
 			}

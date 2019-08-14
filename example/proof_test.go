@@ -32,29 +32,15 @@ func TestBadgerScenario(t *testing.T) {
 	defer cleanup()
 
 	tx := db.NewTransaction(true)
-	_ = tx.Set(storage.Database{
-		DatabaseID:   1,
-		DatabaseName: "ark",
-	}.Path(), []byte{})
-
-	_ = tx.Set(storage.Schema{
-		DatabaseID: 1,
-		SchemaID:   1,
-		SchemaName: "public",
-	}.Path(), []byte{})
 
 	for i := 0; i < 100; i++ {
 		_ = tx.Set(storage.Table{
-			DatabaseID: 1,
-			SchemaID:   1,
-			TableID:    uint8(i + 1),
-			TableName:  fmt.Sprintf("accounts_%d", i),
+			TableID:   uint8(i + 1),
+			TableName: fmt.Sprintf("accounts_%d", i),
 		}.Path(), []byte{})
 	}
 
 	_ = tx.Set(storage.Column{
-		DatabaseID: 1,
-		SchemaID:   1,
 		TableID:    1,
 		ColumnID:   1,
 		ColumnName: "account_id",
@@ -62,8 +48,6 @@ func TestBadgerScenario(t *testing.T) {
 	}.Path(), []byte{})
 
 	_ = tx.Set(storage.Column{
-		DatabaseID: 1,
-		SchemaID:   1,
 		TableID:    1,
 		ColumnID:   2,
 		ColumnName: "name",
@@ -73,9 +57,7 @@ func TestBadgerScenario(t *testing.T) {
 	_ = tx.Commit()
 
 	tableSearch := storage.Table{
-		DatabaseID: 1,
-		SchemaID:   1,
-		TableName:  "accounts_48",
+		TableName: "accounts_48",
 	}.Prefix()
 	fmt.Println("performing search on path:")
 	fmt.Println(hex.Dump(tableSearch))

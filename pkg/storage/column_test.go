@@ -12,8 +12,6 @@ func TestColumn_Path(t *testing.T) {
 		item := &Column{
 			ColumnID:   8,
 			TableID:    34,
-			SchemaID:   23,
-			DatabaseID: 12,
 			ColumnName: "account_id",
 			ColumnType: 105,
 		}
@@ -28,8 +26,6 @@ func TestColumn_Size(t *testing.T) {
 		item := &Column{
 			ColumnID:   8,
 			TableID:    34,
-			SchemaID:   23,
-			DatabaseID: 12,
 			ColumnName: "account_id",
 			ColumnType: 105,
 		}

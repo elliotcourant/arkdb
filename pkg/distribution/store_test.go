@@ -177,10 +177,8 @@ func TestNewDistributor(t *testing.T) {
 			assert.NoError(t, err)
 
 			table := &storage.Table{
-				TableID:    uint8(i + 1),
-				DatabaseID: 1,
-				SchemaID:   3,
-				TableName:  fmt.Sprintf("table_%d", i),
+				TableID:   uint8(i + 1),
+				TableName: fmt.Sprintf("table_%d", i),
 			}
 
 			err = tx.Set(table.Path(), table)
@@ -363,10 +361,8 @@ func TestNewDistributor(t *testing.T) {
 			assert.NoError(t, err)
 
 			table := &storage.Table{
-				TableID:    uint8(i + 1),
-				DatabaseID: 1,
-				SchemaID:   3,
-				TableName:  fmt.Sprintf("table_%d", i),
+				TableID:   uint8(i + 1),
+				TableName: fmt.Sprintf("table_%d", i),
 			}
 
 			err = tx.Set(table.Path(), table)

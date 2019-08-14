@@ -11,6 +11,7 @@ require (
 	github.com/hashicorp/go-hclog v0.9.1
 	github.com/hashicorp/raft v1.1.1
 	github.com/jackc/pgx v3.5.1-0.20190806214632-ca9de5125695+incompatible
+	github.com/olekukonko/tablewriter v0.0.2-0.20190618033246-cc27d85e17ce
 	github.com/pingcap/parser v0.0.0-20190803082711-3db5c165d5d9
 	github.com/pingcap/tidb v0.0.0-20190804061401-3bd64ba92f14
 	github.com/pingcap/tipb v0.0.0-20190801052434-b2d318af5e8a // indirect

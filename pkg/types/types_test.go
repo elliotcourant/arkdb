@@ -81,9 +81,9 @@ func TestEncode(t *testing.T) {
 		encodeBad(TypeDate, time.Now().Format(ISO8601))
 	})
 
-	t.Run("TypeVarchar|TypeVarString|TypeString", func(t *testing.T) {
+	t.Run("TypeVarchar|TypeVarString|TypeString|TypeBlob", func(t *testing.T) {
 		ts := []Type{
-			TypeVarchar, TypeVarString, TypeString,
+			TypeVarchar, TypeVarString, TypeString, TypeBlob,
 		}
 		for _, ty := range ts {
 			encode(ty, time.Now().UnixNano())

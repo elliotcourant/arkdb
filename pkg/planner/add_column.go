@@ -17,7 +17,7 @@ func (p *planContext) addColumnPlanner(column storage.Column) addColumnPlan {
 	}
 }
 
-func (e *executeContext) addColumn(plan addColumnPlan) error {
+func (e *executeContext) runAddColumn(plan addColumnPlan) error {
 	if plan.checkExisting {
 		exists, err := e.doesExist(plan.column.Prefix())
 		if err != nil {

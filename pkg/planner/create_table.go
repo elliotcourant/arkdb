@@ -14,18 +14,14 @@ type createTablePlan struct {
 
 func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) createTablePlan {
 	table := storage.Table{
-		TableID:    0,
-		DatabaseID: 1,
-		SchemaID:   1,
-		TableName:  stmt.Table.Name.String(),
+		TableID:   0,
+		TableName: stmt.Table.Name.String(),
 	}
 
 	columns := make([]addColumnPlan, len(stmt.Cols))
 	for i, column := range stmt.Cols {
 		columns[i] = p.addColumnPlanner(storage.Column{
 			ColumnID:   0,
-			DatabaseID: 1,
-			SchemaID:   1,
 			TableID:    0,
 			ColumnName: column.Name.Name.String(),
 			ColumnType: types.Type(column.Tp.Tp),
@@ -40,8 +36,8 @@ func (p *planContext) createTablePlanner(stmt *ast.CreateTableStmt) createTableP
 	}
 }
 
-func (e *executeContext) createTable(plan createTablePlan) error {
-	_, exists, err := e.getTable(plan.table.DatabaseID, plan.table.SchemaID, plan.table.TableName)
+func (e *executeContext) runCreateTable(plan createTablePlan, s *set) error {
+	_, exists, err := e.getTable(plan.table.TableName)
 	if err != nil {
 		return err
 	}
@@ -60,7 +56,7 @@ func (e *executeContext) createTable(plan createTablePlan) error {
 
 	for _, column := range plan.columns {
 		column.column.TableID = tableId
-		if err := e.executeItem(column); err != nil {
+		if err := e.executeItem(column, s); err != nil {
 			return err
 		}
 	}

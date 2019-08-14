@@ -13,7 +13,6 @@ func TestDatum_Path(t *testing.T) {
 			PrimaryKeyID: 124929424,
 			ColumnID:     8,
 			TableID:      34,
-			SchemaID:     23,
 		}
 		path := item.Path()
 		assert.NotEmpty(t, path)

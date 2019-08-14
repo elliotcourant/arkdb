@@ -28,6 +28,8 @@ func CreatePlan(nodes []ast.StmtNode) (Plan, error) {
 			ptx.Plan.Steps[i] = ptx.createTablePlanner(n)
 		case *ast.InsertStmt:
 			ptx.Plan.Steps[i] = ptx.insertPlanner(n)
+		case *ast.SelectStmt:
+			ptx.Plan.Steps[i] = ptx.selectPlanner(n)
 		default:
 			return ptx.Plan, fmt.Errorf("cannot create plan for stmt node type [%T]", n)
 		}

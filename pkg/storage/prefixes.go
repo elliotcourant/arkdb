@@ -3,9 +3,7 @@ package storage
 type MetaPrefix = byte
 
 const (
-	MetaPrefix_Database       MetaPrefix = 'd'
-	MetaPrefix_Schema                    = 's'
-	MetaPrefix_Table                     = 't'
+	MetaPrefix_Table          MetaPrefix = 't'
 	MetaPrefix_Column                    = 'c'
 	MetaPrefix_MyId                      = '@'
 	MetaPrefix_Log                       = 'l'

@@ -23,7 +23,7 @@ func Exec(t *testing.T, tx distribution.Transaction, query string) {
 
 	result, err := Execute(tx, plan)
 	assert.NoError(t, err)
-	assert.Nil(t, result)
+	assert.NotNil(t, result)
 }
 
 func TestExecute(t *testing.T) {
@@ -41,7 +41,7 @@ func TestExecute(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("insert", func(t *testing.T) {
+	t.Run("runInsert", func(t *testing.T) {
 		barge, cleanup := bargeutil.NewBarge(t)
 		defer cleanup()
 
