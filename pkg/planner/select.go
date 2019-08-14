@@ -1,6 +1,7 @@
 package planner
 
 import (
+	"fmt"
 	"github.com/elliotcourant/arkdb/pkg/storage"
 	"github.com/pingcap/parser/ast"
 )
@@ -12,11 +13,12 @@ type selectPlanNode interface {
 type selectPlanner struct {
 	fields []selectField
 	steps  []selectPlanNode
+	tables map[string]uint8
 	limit  int
 }
 
-func (p *planContext) selectPlanner(stmt *ast.SelectStmt) selectPlanner {
-	plan := selectPlanner{
+func (p *planContext) selectPlanner(stmt *ast.SelectStmt) *selectPlanner {
+	plan := &selectPlanner{
 		fields: make([]selectField, len(stmt.Fields.Fields)),
 	}
 
@@ -24,6 +26,12 @@ func (p *planContext) selectPlanner(stmt *ast.SelectStmt) selectPlanner {
 		f := &selectField{
 			name: field.AsName.String(),
 		}
+		if field.WildCard != nil {
+			f.wildcardTable = field.WildCard.Table.String()
+			f.isWildcard = true
+			continue
+		}
+
 		switch e := field.Expr.(type) {
 		case ast.ValueExpr:
 			f.expr = valueExpression{
@@ -46,36 +54,19 @@ func (p *planContext) selectPlanner(stmt *ast.SelectStmt) selectPlanner {
 	return plan
 }
 
-type selectSimplePlanner struct {
-	fields []selectField
+func (e *executeContext) runSelect(plan *selectPlanner, s *set) error {
+	return plan.do(e, s)
 }
 
-func (p selectSimplePlanner) do(e *executeContext, s *set) error {
-	cells := make([]interface{}, len(p.fields))
-	for i, field := range p.fields {
-		val, err := field.expr.eval(e, nil)
-		if err != nil {
-			return err
+func (p *selectPlanner) do(e *executeContext, s *set) error {
+	for tableName, _ := range p.tables {
+		table, ok, _ := e.getTable(tableName)
+		if !ok {
+			return fmt.Errorf("table [%s] does not exist", tableName)
 		}
-		cells[i] = val
+		p.tables[tableName] = table.TableID
 	}
-	s.addRow(cells...)
-	return nil
-}
 
-type joinPlanner struct {
-}
-
-type wherePlanner struct {
-	columns map[string][]storage.Column
-}
-
-type selectField struct {
-	expr expression
-	name string
-}
-
-func (p selectPlanner) do(e *executeContext, s *set) error {
 	s.setNumberOfColumns(len(p.fields))
 	for i, field := range p.fields {
 		name := "??column??"
@@ -94,6 +85,33 @@ func (p selectPlanner) do(e *executeContext, s *set) error {
 	return nil
 }
 
-func (e *executeContext) runSelect(plan selectPlanner, s *set) error {
-	return plan.do(e, s)
+type joinPlanner struct {
+}
+
+type wherePlanner struct {
+	columns map[string][]storage.Column
+}
+
+type selectField struct {
+	expr          expression
+	name          string
+	wildcardTable string
+	isWildcard    bool
+}
+
+type selectSimplePlanner struct {
+	fields []selectField
+}
+
+func (p selectSimplePlanner) do(e *executeContext, s *set) error {
+	cells := make([]interface{}, len(p.fields))
+	for i, field := range p.fields {
+		val, err := field.expr.eval(e, nil)
+		if err != nil {
+			return err
+		}
+		cells[i] = val
+	}
+	s.addRow(cells...)
+	return nil
 }

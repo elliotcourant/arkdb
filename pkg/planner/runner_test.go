@@ -26,6 +26,26 @@ func Exec(t *testing.T, tx distribution.Transaction, query string) {
 	assert.NotNil(t, result)
 }
 
+func Query(tx distribution.Transaction, query string) Results {
+	start := time.Now()
+	defer timber.Infof("test query execution time: %s", time.Since(start))
+	nodes, err := parser.Parse(query)
+	if err != nil {
+		panic(err)
+	}
+
+	plan, err := CreatePlan(nodes)
+	if err != nil {
+		panic(err)
+	}
+
+	result, err := Execute(tx, plan)
+	if err != nil {
+		panic(err)
+	}
+	return result
+}
+
 func TestExecute(t *testing.T) {
 	t.Run("create table", func(t *testing.T) {
 		barge, cleanup := bargeutil.NewBarge(t)

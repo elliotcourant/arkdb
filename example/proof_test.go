@@ -1,14 +1,10 @@
 package example_test
 
 import (
-	"encoding/hex"
 	"fmt"
-	"github.com/dgraph-io/badger"
 	"github.com/elliotcourant/arkdb/internal/testutils"
-	"github.com/elliotcourant/arkdb/pkg/storage"
 	"github.com/stretchr/testify/assert"
 	"testing"
-	"time"
 )
 
 func BenchmarkBadgerMassiveInsert(b *testing.B) {
@@ -25,61 +21,4 @@ func BenchmarkBadgerMassiveInsert(b *testing.B) {
 		}
 		tx.Commit()
 	}
-}
-
-func TestBadgerScenario(t *testing.T) {
-	db, cleanup := testutils.NewDB(t)
-	defer cleanup()
-
-	tx := db.NewTransaction(true)
-
-	for i := 0; i < 100; i++ {
-		_ = tx.Set(storage.Table{
-			TableID:   uint8(i + 1),
-			TableName: fmt.Sprintf("accounts_%d", i),
-		}.Path(), []byte{})
-	}
-
-	_ = tx.Set(storage.Column{
-		TableID:    1,
-		ColumnID:   1,
-		ColumnName: "account_id",
-		ColumnType: 105,
-	}.Path(), []byte{})
-
-	_ = tx.Set(storage.Column{
-		TableID:    1,
-		ColumnID:   2,
-		ColumnName: "name",
-		ColumnType: 25,
-	}.Path(), []byte{})
-
-	_ = tx.Commit()
-
-	tableSearch := storage.Table{
-		TableName: "accounts_48",
-	}.Prefix()
-	fmt.Println("performing search on path:")
-	fmt.Println(hex.Dump(tableSearch))
-	_ = db.View(func(txn *badger.Txn) error {
-		it := txn.NewIterator(badger.IteratorOptions{
-			PrefetchValues: false,
-			Reverse:        false,
-			AllVersions:    false,
-			Prefix:         tableSearch,
-		})
-		defer it.Close()
-		startTime := time.Now()
-		tableId := func(it *badger.Iterator) uint8 {
-			defer func() {
-				fmt.Println("search took:", time.Now().Sub(startTime))
-			}()
-			for it.Rewind(); it.Valid(); it.Next() {
-				return it.Item().Key()[len(tableSearch)]
-			}
-			return 0
-		}(it)
-		assert.Equal(t, uint8(49), tableId)
-		return nil
-	})
 }

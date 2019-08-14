@@ -2,6 +2,7 @@ package planner
 
 import (
 	"fmt"
+	"github.com/dgraph-io/badger"
 	"github.com/elliotcourant/arkdb/pkg/distribution"
 	"github.com/elliotcourant/arkdb/pkg/storage"
 	"github.com/elliotcourant/timber"
@@ -93,20 +94,11 @@ func (e *executeContext) getTable(tableName string) (*storage.Table, bool, error
 	tbl := &storage.Table{
 		TableName: tableName,
 	}
-	var exists bool
-	table := &storage.Table{}
-	err := func(tx distribution.Transaction, prefix []byte) error {
-		itr := tx.GetKeyIterator(prefix, false, false)
-		defer itr.Close()
-		for itr.Seek(prefix); itr.ValidForPrefix(prefix); {
-			exists = true
-			return itr.Item().Value(func(val []byte) error {
-				return table.Decode(val)
-			})
-		}
-		return nil
-	}(e.tx, tbl.Prefix())
-	return table, exists, err
+	err := e.tx.Get(tbl.Path(), tbl)
+	if err != nil && err != badger.ErrKeyNotFound {
+		return nil, false, err
+	}
+	return tbl, tbl.TableID > 0, nil
 }
 
 func (e *executeContext) getColumns(tableId uint8, columnNames ...string) ([]storage.Column, error) {
@@ -147,7 +139,7 @@ func (e *executeContext) executeItem(step PlanStep, s *set) error {
 		return e.runCreateTable(item, s)
 	case insertPlanner:
 		return e.runInsert(item)
-	case selectPlanner:
+	case *selectPlanner:
 		return e.runSelect(item, s)
 	default:
 		return fmt.Errorf("cannot execute plan for [%T]", item)

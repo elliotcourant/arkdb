@@ -28,7 +28,6 @@ func (i Table) Path() []byte {
 	buf := buffers.NewBytesBuffer()
 	buf.AppendByte(MetaPrefix_Table)
 	buf.AppendString(i.TableName)
-	buf.AppendUint8(i.TableID)
 	return buf.Bytes()
 }
 
