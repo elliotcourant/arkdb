@@ -24,6 +24,7 @@ type executeContext struct {
 
 	// table -> column index -> primary key -> value
 	stmtCache map[string][]map[uint64][]byte
+	columns   []storage.Column
 }
 
 func newExecuteContext(tx distribution.Transaction, plan Plan) *executeContext {
@@ -31,6 +32,7 @@ func newExecuteContext(tx distribution.Transaction, plan Plan) *executeContext {
 		tx:            tx,
 		pendingWrites: map[string][]byte{},
 		plan:          plan,
+		stmtCache:     map[string][]map[uint64][]byte{},
 		results: &results{
 			sets: make([]*set, len(plan.Steps)),
 		},
@@ -41,7 +43,6 @@ func (e *executeContext) Execute() (Results, error) {
 	e.start = time.Now()
 	defer timber.Tracef("query execution took: %s", time.Since(e.start))
 	for i, step := range e.plan.Steps {
-		e.stmtCache = map[string][]map[uint64][]byte{}
 		e.results.sets[i] = &set{}
 		err := e.executeItem(step, e.results.sets[i])
 		if err != nil {
@@ -80,6 +81,8 @@ func (e *executeContext) commitStatement() error {
 		}
 	}
 	e.pendingWrites = map[string][]byte{}
+	e.stmtCache = map[string][]map[uint64][]byte{}
+	e.columns = nil
 	return nil
 }
 

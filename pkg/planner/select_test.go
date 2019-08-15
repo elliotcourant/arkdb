@@ -39,10 +39,10 @@ func TestSelect(t *testing.T) {
 		assert.NoError(t, err)
 		assert.NotNil(t, tx)
 
-		Query(tx, `CREATE TABLE foo (id BIGINT PRIMARY KEY, name TEXT);`)
+		Query(tx, `CREATE TABLE foo (id BIGINT PRIMARY KEY, account_id BIGINT,  name TEXT, description TEXT, created_at TIMESTAMP);`)
 		Query(tx, `INSERT INTO foo (id, name) VALUES(1, 'elliot'), (2, 'bob'), (3, 'rickster');`)
 
-		result := Query(tx, `SELECT * FROM foo;`)
+		result := Query(tx, `SELECT id, created_at, account_id as 'account' FROM foo;`)
 		fmt.Println(result.String())
 	})
 }

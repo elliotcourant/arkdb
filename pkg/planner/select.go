@@ -34,18 +34,21 @@ func (p *planContext) selectPlanner(stmt *ast.SelectStmt) *selectPlanner {
 		f := &selectField{
 			asName: field.AsName.String(),
 		}
+
 		if field.WildCard != nil {
 			f.isWildcard = true
-			continue
-		}
-
-		switch e := field.Expr.(type) {
-		case ast.ValueExpr:
-			f.expr = valueExpression{
-				value: e.GetValue(),
-			}
-		case *ast.FuncCallExpr:
+		} else {
+			switch e := field.Expr.(type) {
+			case ast.ValueExpr:
+				f.expr = valueExpression{
+					value: e.GetValue(),
+				}
+			case *ast.FuncCallExpr:
 			// not handling this yet
+			case *ast.ColumnNameExpr:
+				f.name = e.Name.Name.String()
+				f.table = e.Name.Table.String()
+			}
 		}
 		plan.fields[i] = *f
 	}
@@ -111,49 +114,115 @@ func (p *selectPlanner) do(e *executeContext, s *set) error {
 		p.tables[tableName] = table.TableID
 	}
 
-	tableAndColumnNames := map[uint8]map[string]interface{}{}
-	// Pull columns for tables.
-	for _, column := range p.fields {
-		tableId, columnName := uint8(0), column.name
+	fieldNames := make([]string, 0)
+	if len(p.tables) > 0 {
+		type columnAndIndex struct {
+			columnName string
+			index      int
+			isWildcard bool
+			asName     string
+		}
+		tableAndColumnNames := map[uint8]map[string]int{}
+		// Pull columns for tables.
+		for i, column := range p.fields {
+			tableId, columnName := uint8(0), column.name
 
-		// If they directly specify a table then resolve that table or its alias to a table ID.
-		if len(column.table) > 0 {
-			tableName, ok := p.aliases[column.table]
-			if !ok {
-				return fmt.Errorf("cannot resolve table [%s] for column [%s]", column.table, column.name)
+			// If they directly specify a table then resolve that table or its alias to a table ID.
+			if len(column.table) > 0 {
+				tableName, ok := p.aliases[column.table]
+				if !ok {
+					return fmt.Errorf("cannot resolve table [%s] for column [%s]", column.table, column.name)
+				}
+				tableId, ok = p.tables[tableName]
+				if !ok {
+					return fmt.Errorf("could not resolve table [%s] for column [%s]", column.table, column.name)
+				}
 			}
-			tableId, ok = p.tables[tableName]
+
+			// If this is a wildcard column set the column name to an empty string
+			// this is for doing prefix scans. An empty string will resolve to every
+			// column in a table.
+			if column.isWildcard {
+				columnName = ""
+			}
+
+			if len(column.name) == 0 && !column.isWildcard {
+				continue
+			}
+			_, ok := tableAndColumnNames[tableId]
 			if !ok {
-				return fmt.Errorf("could not resolve table [%s] for column [%s]", column.table, column.name)
+				tableAndColumnNames[tableId] = map[string]int{}
+			}
+			tableAndColumnNames[tableId][columnName] = i
+		}
+
+		numberOfColumns := 0
+		ambiguousColumns := map[string]uint8{}
+		resolveColumns := func(ambiguous bool, tableId uint8, cols map[string]int) error {
+			names := make([]string, 0)
+			for name := range cols {
+				names = append(names, name)
+			}
+
+			columns, err := e.getColumnsEx(tableId, names...)
+			if err != nil {
+				return fmt.Errorf("could not resolve columns: %v", err)
+			}
+
+			for columnName, column := range columns {
+				if ambiguous {
+					_, ok := ambiguousColumns[columnName]
+					if ok {
+						return fmt.Errorf("column [%s] is ambiguous", columnName)
+					}
+					ambiguousColumns[columnName] = column.TableID
+				}
+
+				name := columnName
+				fieldIndex, ok := cols[columnName]
+				if ok {
+					as := p.fields[fieldIndex].asName
+					if len(as) > 0 {
+						name = as
+					}
+				}
+				fieldNames = append(fieldNames, name)
+				e.columns = append(e.columns, column)
+				numberOfColumns++
+			}
+
+			return nil
+		}
+
+		for tableId, columnMap := range tableAndColumnNames {
+			switch tableId {
+			case 0:
+				for _, tId := range p.tables {
+					if err := resolveColumns(true, tId, columnMap); err != nil {
+						return err
+					}
+				}
+			default:
+				if err := resolveColumns(false, tableId, columnMap); err != nil {
+					return err
+				}
 			}
 		}
-
-		// If this is a wildcard column set the column name to an empty string
-		// this is for doing prefix scans. An empty string will resolve to every
-		// column in a table.
-		if column.isWildcard {
-			columnName = ""
+	} else {
+		for _, field := range p.fields {
+			name := field.name
+			if len(field.asName) > 0 {
+				name = field.asName
+			}
+			fieldNames = append(fieldNames, name)
 		}
-
-		_, ok := tableAndColumnNames[tableId]
-		if !ok {
-			tableAndColumnNames[tableId] = map[string]interface{}{}
-		}
-		tableAndColumnNames[tableId][columnName] = nil
 	}
 
-	// queryColumns := make([]storage.Column, 0)
-	// for tableId, columns := range tableAndColumnNames {
-	// 	if tableId == 0 {
-	//
-	// 	}
-	// }
-
-	s.setNumberOfColumns(len(p.fields))
-	for i, field := range p.fields {
+	s.setNumberOfColumns(len(fieldNames))
+	for i, field := range fieldNames {
 		name := "?column?"
-		if len(field.name) > 0 {
-			name = field.name
+		if len(field) > 0 {
+			name = field
 		}
 		s.setColumnName(i, name)
 	}
@@ -180,6 +249,7 @@ type selectField struct {
 	table      string
 	asName     string
 	isWildcard bool
+	column     storage.Column
 }
 
 type selectSimplePlanner struct {
